@@ -1,87 +1,386 @@
 @import "tailwindcss/preflight";
 @tailwind utilities;
 
-/* Background Image Styles */
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+
 body {
   margin: 0;
   padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv01', 'cv02', 'ss01';
+  letter-spacing: -0.005em;
 }
 
-/* Enhanced Glass-morphism effects */
+/* ─── Design System Tokens ────────────────────────────────────────────────── */
+
+:root {
+  /* Backgrounds — warm stone neutral, calm */
+  --color-bg:           #FAFAF9;
+  --color-surface:      #FFFFFF;
+  --color-surface-2:    #F7F7F6;
+  --color-border:       rgba(0, 0, 0, 0.07);
+  --color-border-focus: rgba(99, 102, 241, 0.50);
+
+  /* Text — soft, not pure black */
+  --color-text:         #18181B;
+  --color-text-2:       #52525B;
+  --color-muted:        #71717A;
+  --color-subtle:       #A1A1AA;
+
+  /* Semantic Finance — psychologically calm */
+  /* Income: emerald — growth, stability, hope */
+  --color-income:       #059669;   /* emerald-600 */
+  --color-income-bg:    rgba(5, 150, 105, 0.07);
+  --color-income-text:  #065F46;   /* emerald-800 */
+
+  /* Expense: soft rose — clear but not alarming, no guilt */
+  --color-expense:      #F43F5E;   /* rose-500 */
+  --color-expense-bg:   rgba(244, 63, 94, 0.07);
+  --color-expense-text: #9F1239;   /* rose-800 */
+
+  /* Supporting */
+  --color-warning:  #D97706;   /* amber-600 — warm, attention */
+  --color-info:     #3B82F6;   /* blue-500 */
+  --color-premium:  #7C3AED;   /* violet-600 */
+  --color-positive: #059669;   /* emerald-600 */
+
+  /* Accent — Indigo for CTAs, separate from financial semantics */
+  --color-accent:        #6366F1;
+  --color-accent-hover:  #4F46E5;
+  --color-accent-active: #4338CA;
+  --color-accent-bg:     rgba(99, 102, 241, 0.08);
+
+  /* Shadows — lighter, more air */
+  --shadow-xs:  0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm:  0 1px 4px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-md:  0 4px 10px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.03);
+  --shadow-lg:  0 10px 24px rgba(0,0,0,0.07), 0 4px 8px rgba(0,0,0,0.03);
+  --shadow-xl:  0 20px 48px rgba(0,0,0,0.09);
+
+  /* Border Radius */
+  --radius-card:   16px;
+  --radius-modal:  20px;
+  --radius-input:  10px;
+  --radius-button: 10px;
+  --radius-badge:  9999px;
+  --radius-chip:   8px;
+
+  /* Motion */
+  --duration-fast:   100ms;
+  --duration-normal: 180ms;
+  --duration-slow:   280ms;
+  --duration-crawl:  480ms;
+  --ease-ui:       cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:      cubic-bezier(0, 0, 0.2, 1);
+  --ease-in:       cubic-bezier(0.4, 0, 1, 1);
+}
+
+.dark {
+  --color-bg:      #09090B;
+  --color-surface: #18181B;
+  --color-border:  rgba(255, 255, 255, 0.08);
+  --color-text:    #FAFAFA;
+  --color-text-2:  #A1A1AA;
+  --color-muted:   #71717A;
+}
+
+/* ─── MUI Glass System ────────────────────────────────────────────────────── */
+
 .MuiPaper-root:not(.MuiAppBar-root) {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.06),
+    0 1px 2px rgba(0,0,0,0.04) !important;
 }
 
-/* Enhance glass effect for specific colored papers */
+/* Table container: more opaque for readability */
+.MuiTableContainer-root.MuiPaper-root {
+  background-color: rgba(255, 255, 255, 0.90) !important;
+  backdrop-filter: blur(20px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
 .MuiPaper-root[style*="background-color"] {
   background-color: inherit !important;
-  opacity: 1;
   backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
 }
 
-/* Keep snackbars readable with blurry background */
-.MuiSnackbar-root .MuiPaper-root {
-  backdrop-filter: blur(30px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
-  opacity: 1 !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+/* ─── MUI Table ───────────────────────────────────────────────────────────── */
+
+/* Header */
+.MuiTable-root thead .MuiTableCell-root {
+  background-color: rgba(250, 250, 249, 0.96) !important;
+  color: #71717A !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.07em !important;
+  padding: 13px 20px !important;
+  border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+  white-space: nowrap !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-/* Enhance Alert backgrounds within Snackbars for better readability */
-.MuiSnackbar-root .MuiAlert-standardSuccess {
-  background-color: rgba(46, 125, 50, 0.95) !important;
+/* Body rows */
+.MuiTable-root tbody .MuiTableRow-root {
+  transition: background-color 120ms ease !important;
 }
 
-.MuiSnackbar-root .MuiAlert-standardError {
-  background-color: rgba(211, 47, 47, 0.95) !important;
+.MuiTable-root tbody .MuiTableRow-root:hover {
+  background-color: rgba(99, 102, 241, 0.03) !important;
 }
 
-.MuiSnackbar-root .MuiAlert-standardWarning {
-  background-color: rgba(237, 108, 2, 0.95) !important;
+/* Body cells — more vertical padding for breathing room */
+.MuiTable-root tbody .MuiTableCell-root {
+  border-bottom: 1px solid rgba(0,0,0,0.04) !important;
+  padding: 16px 20px !important;
+  font-size: 13.5px !important;
+  color: #18181B !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  line-height: 1.5 !important;
 }
 
-.MuiSnackbar-root .MuiAlert-standardInfo {
-  background-color: rgba(2, 136, 209, 0.95) !important;
+/* Pagination */
+.MuiTablePagination-toolbar {
+  min-height: 52px !important;
+  padding: 0 12px !important;
 }
 
-/* Keep bottom navigation and app bar styling as defined in components */
-.MuiBottomNavigation-root {
-  backdrop-filter: blur(10px) !important;
+.MuiTablePagination-selectLabel,
+.MuiTablePagination-displayedRows {
+  font-size: 12px !important;
+  color: #71717A !important;
 }
 
-/* iOS-style AppBar specific styling - High specificity to override MUI classes */
+/* ─── MUI AppBar (iOS-style, mobile) ─────────────────────────────────────── */
+
 .MuiAppBar-root,
 .MuiAppBar-root.MuiPaper-root,
-[class*="MuiAppBar-root"],
-[class*="css-"][class*="MuiAppBar-root"] {
-  backdrop-filter: blur(25px) saturate(200%) !important;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+[class*="MuiAppBar-root"] {
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.12) 0%,
+    rgba(255,255,255,0.05) 100%
+  ) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
   box-shadow: none !important;
 }
 
-/* Additional override for any MUI generated classes */
 .MuiAppBar-root * {
   background-color: transparent !important;
 }
 
-/* Nuclear option - target the specific class you mentioned */
-[class*="css-"][class*="MuiBottomNavigation-root"],
-[class*="css-7ax0nd-MuiBottomNavigation-root"],
-.MuiAppBar-root [class*="css-"],
-.MuiAppBar-root [class*="MuiBottomNavigation"] {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
-}
-
-/* Ensure iOS AppBar has proper safe area support */
 @supports (padding-top: env(safe-area-inset-top)) {
   .MuiAppBar-root .MuiToolbar-root {
     padding-top: env(safe-area-inset-top) !important;
   }
+}
+
+/* ─── MUI Bottom Navigation ───────────────────────────────────────────────── */
+
+.MuiBottomNavigation-root {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+  height: 66px !important;
+}
+
+.MuiBottomNavigationAction-root {
+  color: #A1A1AA !important;
+  min-width: 0 !important;
+  padding: 10px 0 8px !important;
+  transition: color 120ms ease !important;
+}
+
+.MuiBottomNavigationAction-root.Mui-selected {
+  color: #6366F1 !important;
+}
+
+.MuiBottomNavigationAction-root .MuiBottomNavigationAction-label {
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  margin-top: 3px !important;
+  letter-spacing: 0.01em !important;
+}
+
+.MuiBottomNavigationAction-root.Mui-selected .MuiBottomNavigationAction-label {
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+}
+
+/* ─── MUI Form Controls ───────────────────────────────────────────────────── */
+
+.MuiOutlinedInput-root {
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transition: box-shadow 120ms ease !important;
+}
+
+.MuiOutlinedInput-notchedOutline {
+  border-color: rgba(0, 0, 0, 0.11) !important;
+  transition: border-color 120ms ease !important;
+}
+
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(0, 0, 0, 0.20) !important;
+}
+
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #6366F1 !important;
+  border-width: 1.5px !important;
+}
+
+.MuiOutlinedInput-root.Mui-focused {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.10) !important;
+}
+
+.MuiInputLabel-root.Mui-focused {
+  color: #6366F1 !important;
+}
+
+.MuiSelect-select {
+  font-size: 14px !important;
+}
+
+/* ─── MUI Toggle Button Group (period selector, dashboard) ───────────────── */
+
+.MuiToggleButtonGroup-root .MuiToggleButton-root {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  padding: 5px 13px !important;
+  border-radius: 8px !important;
+  border-color: rgba(0, 0, 0, 0.09) !important;
+  color: #71717A !important;
+  transition: all 120ms ease !important;
+  letter-spacing: -0.01em !important;
+}
+
+.MuiToggleButtonGroup-root .MuiToggleButton-root.Mui-selected {
+  background-color: rgba(99, 102, 241, 0.09) !important;
+  color: #4338CA !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
+  font-weight: 600 !important;
+}
+
+/* ─── MUI Accordion (mobile transaction list) ─────────────────────────────── */
+
+.MuiAccordion-root {
+  border-radius: 12px !important;
+  margin-bottom: 8px !important;
+  overflow: hidden !important;
+  transition: box-shadow 150ms ease !important;
+}
+
+.MuiAccordion-root::before {
+  display: none !important;
+}
+
+.MuiAccordionSummary-root {
+  min-height: 64px !important;
+  padding: 0 18px !important;
+}
+
+.MuiAccordionSummary-content {
+  margin: 14px 0 !important;
+}
+
+.MuiAccordionDetails-root {
+  padding: 8px 18px 18px !important;
+}
+
+/* ─── MUI Snackbar & Alerts ───────────────────────────────────────────────── */
+
+.MuiSnackbar-root .MuiPaper-root {
+  backdrop-filter: blur(32px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.22),
+    0 2px 8px rgba(0,0,0,0.12) !important;
+  border-radius: 12px !important;
+}
+
+.MuiSnackbar-root .MuiAlert-standardSuccess {
+  background-color: rgba(6, 78, 59, 0.94) !important;
+  color: #ffffff !important;
+}
+
+.MuiSnackbar-root .MuiAlert-standardError {
+  background-color: rgba(159, 18, 57, 0.94) !important;
+  color: #ffffff !important;
+}
+
+.MuiSnackbar-root .MuiAlert-standardWarning {
+  background-color: rgba(180, 83, 9, 0.94) !important;
+  color: #ffffff !important;
+}
+
+.MuiSnackbar-root .MuiAlert-standardInfo {
+  background-color: rgba(29, 78, 216, 0.94) !important;
+  color: #ffffff !important;
+}
+
+/* ─── MUI Modal Backdrop ──────────────────────────────────────────────────── */
+
+.MuiModal-backdrop {
+  backdrop-filter: blur(4px) brightness(0.92) !important;
+  -webkit-backdrop-filter: blur(4px) brightness(0.92) !important;
+  background-color: rgba(0, 0, 0, 0.32) !important;
+}
+
+/* ─── MUI Chip / Badge ────────────────────────────────────────────────────── */
+
+.MuiChip-root {
+  border-radius: 9999px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  height: 22px !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* ─── Scrollbar (Webkit) ──────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* ─── Selection ───────────────────────────────────────────────────────────── */
+
+::selection {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: inherit;
 }

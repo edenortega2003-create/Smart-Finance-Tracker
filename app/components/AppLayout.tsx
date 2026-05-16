@@ -8,7 +8,6 @@ import {
   useMediaQuery,
   useTheme,
   Box,
-  Fab,
   Snackbar,
   Alert,
   BottomNavigation,
@@ -16,7 +15,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import { Plus } from 'lucide-react';
 import HomeIcon from '@mui/icons-material/Home';
 import CategoryIcon from '@mui/icons-material/Category';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -26,7 +25,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslation } from '../hooks/useTranslation';
 import TransactionModal from './TransactionModal';
 import GlobalLoader from './GlobalLoader';
-import Sidebar from './Sidebar';
+import Sidebar, { DRAWER_WIDTH } from './Sidebar';
 import { Transaction } from '../types';
 import { useStore } from '../store/useStore';
 
@@ -129,6 +128,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             display: 'flex',
             flexDirection: 'column',
             minHeight: '100vh',
+            marginLeft: isMobile ? 0 : `${DRAWER_WIDTH}px`,
           }}
         >
           {/* iOS-style AppBar for mobile */}
@@ -240,36 +240,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Paper>
       )}
 
-      <Fab
-        color="primary"
-        aria-label="add"
-        sx={{
-          position: 'fixed',
-          bottom: isMobile ? 72 : 16,
-          right: 16,
-          zIndex: 1001,
-          touchAction: 'manipulation',
-          pointerEvents: 'auto',
-          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 100%)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.3)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.1)',
-          color: 'rgba(0, 0, 0, 0.8)',
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          '&:hover': {
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.2) 100%)',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1)',
-            transform: 'translateY(-2px)',
-          },
-          '&:active': {
-            transform: 'translateY(0px)',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.1)',
-          },
-        }}
+      <button
+        type="button"
         onClick={handleModalOpen}
+        aria-label="Agregar transacción"
+        style={{ bottom: isMobile ? '88px' : '24px' }}
+        className="fixed right-4 z-[1050] flex items-center justify-center w-14 h-14 rounded-full bg-indigo-500 text-white shadow-[0_8px_32px_rgba(99,102,241,0.40)] hover:bg-indigo-600 active:scale-95 transition-all duration-[100ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
       >
-        <AddIcon />
-      </Fab>
+        <Plus size={24} aria-hidden="true" />
+      </button>
       {modalOpen && (
         <TransactionModal
           open={modalOpen}

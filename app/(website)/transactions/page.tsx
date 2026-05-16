@@ -32,9 +32,11 @@ import { Transaction } from '../../types';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import { Plus, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import TransactionModal from '../../components/TransactionModal';
 import TransactionDetailsModal from '../../components/TransactionDetailsModal';
+import { Button as AppButton } from '../../components/ui/Button';
 import { getClassificationLabel, getRegularityLabel } from '../../utils/classifySuggestion';
 
 // iOS-style button configurations
@@ -239,26 +241,33 @@ export default function TransactionsPage() {
   return (
     <>
     <Box sx={{ pt: 1 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        {t.transactions}
-      </Typography>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
-        <Button 
-          variant="contained" 
-          onClick={handleOpenFilterModal}
-          sx={iosButtonStyleSecondary}
-        >
-          {t.filter_transactions}
-        </Button>
-        <Button 
-          variant="contained" 
-          onClick={() => handleOpenModal()}
-          sx={iosButtonStyle}
-        >
-          + {t.add_new_transaction}
-        </Button>
-      </Box>
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
+          {t.transactions}
+        </h1>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleOpenFilterModal}
+            sx={{
+              textTransform: 'none',
+              borderRadius: '8px',
+              borderColor: 'rgba(0,0,0,0.12)',
+              color: 'rgba(0,0,0,0.6)',
+              '&:hover': { borderColor: 'rgba(0,0,0,0.25)', background: 'rgba(0,0,0,0.04)' },
+            }}
+          >
+            <SlidersHorizontal size={14} style={{ marginRight: 6 }} />
+            {t.filter_transactions}
+          </Button>
+          <AppButton variant="primary" size="sm" onClick={() => handleOpenModal()}>
+            <Plus size={14} aria-hidden="true" />
+            {t.add_new_transaction}
+          </AppButton>
+        </div>
+      </div>
 
       <Modal
         open={isFilterModalOpen}
