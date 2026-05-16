@@ -1,5 +1,29 @@
 export type TransactionType = 'income' | 'expense';
 
+export type ExpenseClassification =
+  | 'hormiga'
+  | 'fijo'
+  | 'variable'
+  | 'esporadico'
+  | 'inversion'
+  | 'deuda'
+  | 'ahorro'
+  | 'otro';
+
+export type IncomeClassification =
+  | 'sueldo'
+  | 'venta'
+  | 'regalo'
+  | 'inversion'
+  | 'reembolso'
+  | 'otro';
+
+export type Regularity =
+  | 'regular'
+  | 'no_regular'
+  | 'recurrente'
+  | 'eventual';
+
 export interface Category {
   id: string;
   name: string;
@@ -12,8 +36,11 @@ export interface Transaction {
   date: string;
   amount: number;
   type: TransactionType;
-  category: Category;
+  concept: string;
+  classification: ExpenseClassification | IncomeClassification;
+  regularity: Regularity;
   notes?: string;
+  category?: Category; // legacy: kept for compat with data already in localStorage
 }
 
 export enum Currency {

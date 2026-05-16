@@ -35,6 +35,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useTranslation } from '../../hooks/useTranslation';
 import TransactionModal from '../../components/TransactionModal';
 import TransactionDetailsModal from '../../components/TransactionDetailsModal';
+import { getClassificationLabel, getRegularityLabel } from '../../utils/classifySuggestion';
 
 // iOS-style button configurations
 const iosButtonStyle = {
@@ -389,7 +390,7 @@ export default function TransactionsPage() {
               >
                 <Box sx={{ flexGrow: 1, overflow: 'hidden', mr: 2 }}>
                   <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                    {transaction.category.name}
+                    {transaction.concept ?? transaction.category?.name ?? '—'}
                   </Typography>
                   {transaction.notes && expandedAccordion !== transaction.id && (
                     <Typography sx={{ 
@@ -414,6 +415,12 @@ export default function TransactionsPage() {
                 </Typography>
                 <Typography sx={{ textTransform: 'capitalize' }}>
                   {t.type}: {transaction.type}
+                </Typography>
+                <Typography>
+                  Clasificación: {getClassificationLabel(transaction.classification, transaction.type)}
+                </Typography>
+                <Typography>
+                  Regularidad: {getRegularityLabel(transaction.regularity)}
                 </Typography>
                 {transaction.notes && (
                   <Typography sx={{ mt: 1, fontStyle: 'italic', color: 'text.secondary' }}>
@@ -458,10 +465,11 @@ export default function TransactionsPage() {
               <TableHead>
                 <TableRow>
                   <TableCell>{t.date}</TableCell>
-                  <TableCell>{t.category}</TableCell>
+                  <TableCell>Concepto</TableCell>
+                  <TableCell>Clasificación</TableCell>
+                  <TableCell>Regularidad</TableCell>
                   <TableCell align="right">{t.amount}</TableCell>
                   <TableCell>{t.type}</TableCell>
-                  <TableCell>{t.notes}</TableCell>
                   <TableCell>{t.actions}</TableCell>
                 </TableRow>
               </TableHead>
@@ -474,14 +482,19 @@ export default function TransactionsPage() {
                     <TableCell component="th" scope="row">
                       {new Date(transaction.date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>{transaction.category.name}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      {transaction.concept ?? transaction.category?.name ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      {getClassificationLabel(transaction.classification, transaction.type)}
+                    </TableCell>
+                    <TableCell>
+                      {getRegularityLabel(transaction.regularity)}
+                    </TableCell>
                     <TableCell align="right" sx={{ color: transaction.type === 'income' ? 'green' : 'red' }}>
                       {transaction.type === 'income' ? '+' : '-'} {getCurrencySymbol(settings.currency)} {transaction.amount.toFixed(2)}
                     </TableCell>
                     <TableCell sx={{ textTransform: 'capitalize' }}>{transaction.type}</TableCell>
-                    <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {transaction.notes || '-'}
-                    </TableCell>
                     <TableCell>
                       <Button 
                         size="small" 

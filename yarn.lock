@@ -3964,7 +3964,7 @@ next-pwa@^5.6.0:
     workbox-webpack-plugin "^6.5.4"
     workbox-window "^6.5.4"
 
-next@>=9.0.0:
+next@>=9.0.0, next@15.3.5:
   version "15.3.5"
   resolved "https://registry.npmjs.org/next/-/next-15.3.5.tgz"
   integrity sha512-RkazLBMMDJSJ4XZQ81kolSpwiCt907l0xcgcpF4xC2Vml6QVcPNXW0NQRwQ80FFtSn7UM52XN0anaw8TEJXaiw==

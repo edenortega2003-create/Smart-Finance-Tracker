@@ -11,6 +11,7 @@ import {
 import { Transaction } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
 import { useStore } from '../store/useStore';
+import { getClassificationLabel, getRegularityLabel } from '../utils/classifySuggestion';
 
 interface TransactionDetailsModalProps {
   open: boolean;
@@ -111,24 +112,51 @@ export default function TransactionDetailsModal({ open, onClose, transaction }: 
             />
           </Box>
 
-          {/* Category */}
+          {/* Concepto */}
           <Box>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              {t.category}
+              Concepto
             </Typography>
-            <Box sx={{ 
-              p: 2, 
-              backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+            <Box sx={{
+              p: 2,
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
               borderRadius: 1,
-              border: '1px solid rgba(255, 255, 255, 0.2)'
+              border: '1px solid rgba(255, 255, 255, 0.2)',
             }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                {transaction.category.name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {transaction.category.description}
+                {transaction.concept ?? transaction.category?.name ?? '—'}
               </Typography>
             </Box>
+          </Box>
+
+          {/* Clasificación */}
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Clasificación
+            </Typography>
+            <Chip
+              label={getClassificationLabel(transaction.classification, transaction.type)}
+              sx={{
+                fontWeight: 600,
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+              }}
+            />
+          </Box>
+
+          {/* Regularidad */}
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Regularidad
+            </Typography>
+            <Chip
+              label={getRegularityLabel(transaction.regularity)}
+              sx={{
+                fontWeight: 600,
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+              }}
+            />
           </Box>
 
           {/* Date */}
