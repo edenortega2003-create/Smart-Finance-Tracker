@@ -52,7 +52,7 @@ export function Progress({
           </span>
         </div>
       )}
-      <div className="h-1.5 w-full rounded-full bg-black/[0.07] overflow-hidden">
+      <div className="h-2 w-full rounded-full bg-teal-100 overflow-hidden">
         <div
           className={cn(
             'h-full rounded-full transition-all ease-out',

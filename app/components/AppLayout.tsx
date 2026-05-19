@@ -20,6 +20,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import CategoryIcon from '@mui/icons-material/Category';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslation } from '../hooks/useTranslation';
@@ -27,20 +28,20 @@ import TransactionModal from './TransactionModal';
 import GlobalLoader from './GlobalLoader';
 import Sidebar, { DRAWER_WIDTH } from './Sidebar';
 import { Transaction } from '../types';
-import { useStore } from '../store/useStore';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { t } = useTranslation();
   const pathname = usePathname();
-  const { settings } = useStore();
   const [bottomNavValue, setBottomNavValue] = useState(0);
 
   // Get page title based on current route
   const getPageTitle = () => {
     if (pathname === '/') {
       return t.home || 'Dashboard';
+    } else if (pathname === '/registro') {
+      return 'Registro rápido';
     } else if (pathname === '/categories') {
       return t.categories || 'Categories';
     } else if (pathname === '/transactions') {
@@ -50,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     } else if (pathname.startsWith('/settings')) {
       return t.settings || 'Settings';
     } else {
-      return t.expense_tracker || 'Expense Tracker';
+      return t.expense_tracker || 'MentHabit';
     }
   };
 
@@ -61,15 +62,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('success');
 
   // Update bottom navigation value based on current route
+  // Order: Home(0) | Transactions(1) | Registro(2-center) | Categories(3) | Settings(4)
   useEffect(() => {
     if (pathname === '/') {
       setBottomNavValue(0);
-    } else if (pathname.startsWith('/categories')) {
-      setBottomNavValue(1);
     } else if (pathname.startsWith('/transactions')) {
+      setBottomNavValue(1);
+    } else if (pathname === '/registro') {
       setBottomNavValue(2);
-    } else if (pathname.startsWith('/settings')) {
+    } else if (pathname.startsWith('/categories')) {
       setBottomNavValue(3);
+    } else if (pathname.startsWith('/settings')) {
+      setBottomNavValue(4);
     } else {
       setBottomNavValue(0);
     }
@@ -100,21 +104,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         sx={{
           display: 'flex',
           minHeight: '100vh',
-          position: 'relative',
-          '&::before': {
-            content: '""',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage: `url(/${settings.backgroundImage || 'paper-desktop.jpg'})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            opacity: settings.backgroundOpacity || 1,
-            zIndex: -1,
-          },
+          background: 'linear-gradient(145deg, #FFF9E6 0%, #FFFDF7 55%, #F0FDFA 100%)',
         }}
       >
         {/* Desktop Sidebar */}
@@ -211,27 +201,71 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               setBottomNavValue(newValue);
             }}
             showLabels
+            sx={{
+              '& .MuiBottomNavigationAction-root': { minWidth: 0, padding: '4px 2px' },
+              '& .MuiBottomNavigationAction-label': { fontSize: '10px !important', marginTop: '2px' },
+              '& .Mui-selected .MuiBottomNavigationAction-label': { fontSize: '10px !important' },
+            }}
           >
+            {/* 0 — Home */}
             <BottomNavigationAction
               label={t.home || 'Home'}
               icon={<HomeIcon />}
               component={Link}
               href="/"
             />
+            {/* 1 — Transactions */}
             <BottomNavigationAction
-              label={t.categories}
-              icon={<CategoryIcon />}
-              component={Link}
-              href="/categories"
-            />
-            <BottomNavigationAction
-              label={t.transactions}
+              label={t.transactions || 'Historial'}
               icon={<AccountBalanceWalletIcon />}
               component={Link}
               href="/transactions"
             />
+            {/* 2 — Registro (center hero tab) */}
             <BottomNavigationAction
-              label={t.settings}
+              label="Registro"
+              component={Link}
+              href="/registro"
+              icon={
+                <span style={{
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  width:          '48px',
+                  height:         '48px',
+                  borderRadius:   '50%',
+                  background:     bottomNavValue === 2
+                    ? 'linear-gradient(135deg, #10B981 0%, #0EA5A0 100%)'
+                    : 'linear-gradient(135deg, #10B981 0%, #14B8A6 100%)',
+                  boxShadow:      bottomNavValue === 2
+                    ? '0 6px 20px rgba(16,185,129,0.45)'
+                    : '0 4px 14px rgba(16,185,129,0.32)',
+                  marginBottom:   '-8px',
+                  marginTop:      '-16px',
+                  color:          '#ffffff',
+                  transition:     'all 180ms ease',
+                }}>
+                  <AddCircleIcon sx={{ fontSize: '26px !important', color: '#ffffff' }} />
+                </span>
+              }
+              sx={{
+                '& .MuiBottomNavigationAction-label': {
+                  color:      '#10B981 !important',
+                  fontWeight: '700 !important',
+                  marginTop:  '6px !important',
+                },
+              }}
+            />
+            {/* 3 — Categories */}
+            <BottomNavigationAction
+              label={t.categories || 'Categorías'}
+              icon={<CategoryIcon />}
+              component={Link}
+              href="/categories"
+            />
+            {/* 4 — Settings */}
+            <BottomNavigationAction
+              label={t.settings || 'Ajustes'}
               icon={<SettingsIcon />}
               component={Link}
               href="/settings"

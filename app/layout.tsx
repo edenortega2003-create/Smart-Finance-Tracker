@@ -2,10 +2,10 @@ import './globals.css';
 import AppLayout from './components/AppLayout';
 
 export const metadata = {
-  title: 'Expense Tracker',
-  description: 'A simple PWA expense tracker.',
+  title: 'MentHabit',
+  description: 'Tu compañero de hábitos financieros.',
   manifest: '/manifest.json',
-  themeColor: '#000000',
+  themeColor: '#10B981',
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body>
         <AppLayout>
           {children}

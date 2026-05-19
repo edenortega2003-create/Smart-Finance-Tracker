@@ -3,9 +3,16 @@
 
 /* ─── Base ────────────────────────────────────────────────────────────────── */
 
+/* Override Tailwind preflight's border-color: currentColor — prevents black borders */
+*, ::before, ::after {
+  border-color: var(--color-border);
+}
+
 body {
   margin: 0;
   padding: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -17,11 +24,11 @@ body {
 /* ─── Design System Tokens ────────────────────────────────────────────────── */
 
 :root {
-  /* Backgrounds — warm stone neutral, calm */
-  --color-bg:           #FAFAF9;
+  /* Backgrounds — warm cream, friendly & approachable */
+  --color-bg:           #FFFDF7;
   --color-surface:      #FFFFFF;
-  --color-surface-2:    #F7F7F6;
-  --color-border:       rgba(0, 0, 0, 0.07);
+  --color-surface-2:    #FFFAF0;
+  --color-border:       rgba(0, 0, 0, 0.06);
   --color-border-focus: rgba(99, 102, 241, 0.50);
 
   /* Text — soft, not pure black */
@@ -79,6 +86,35 @@ body {
   --ease-in:       cubic-bezier(0.4, 0, 1, 1);
 }
 
+/* ─── MentHabit Brand Tokens ──────────────────────────────────────────────── */
+:root {
+  --mh-primary:        #10B981;
+  --mh-primary-dark:   #059669;
+  --mh-primary-light:  #ECFDF5;
+  --mh-accent:         #6366F1;
+  --mh-accent-light:   #EEF2FF;
+  --mh-income:         #22C55E;
+  --mh-expense:        #EF4444;
+  --mh-saving:         #0EA5E9;
+  --mh-warning:        #F59E0B;
+  --mh-bg:             #FFFDF7;
+  --mh-surface:        #FFFFFF;
+  --mh-border:         rgba(0, 0, 0, 0.06);
+  --mh-text-primary:   #111827;
+  --mh-text-secondary: #6B7280;
+  --mh-text-muted:     #9CA3AF;
+  /* Habit category colors */
+  --mh-habit-food:       #EA580C;
+  --mh-habit-transport:  #2563EB;
+  --mh-habit-home:       #7C3AED;
+  --mh-habit-health:     #16A34A;
+  --mh-habit-leisure:    #D97706;
+  --mh-habit-services:   #0284C7;
+  --mh-habit-education:  #BE123C;
+  --mh-habit-shopping:   #A21CAF;
+  --mh-habit-other:      #64748B;
+}
+
 .dark {
   --color-bg:      #09090B;
   --color-surface: #18181B;
@@ -88,38 +124,111 @@ body {
   --color-muted:   #71717A;
 }
 
+/* ─── Design System — explicit CSS (bypasses Tailwind v4 scanning limits) ── */
+
+/* Base card — guaranteed to render regardless of Tailwind scanning */
+.et-card {
+  border-radius: 16px;
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+.et-card:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
+  transform: translateY(-2px);
+}
+
+/* MetricCard tinted backgrounds */
+.mc-green   { background-color: #ECFDF5; border-color: #A7F3D0; }
+.mc-red     { background-color: #FFF1F2; border-color: #FECDD3; }
+.mc-blue    { background-color: #F0F9FF; border-color: #BAE6FD; }
+.mc-purple  { background-color: #FAF5FF; border-color: #DDD6FE; }
+.mc-amber   { background-color: #FFFBEB; border-color: #FDE68A; }
+.mc-neutral { background-color: #FFFBEB; border-color: #FDE68A; }
+
+/* MetricCard icon container backgrounds */
+.ic-green   { background-color: #D1FAE5; color: #059669; border-radius: 10px; }
+.ic-red     { background-color: #FFE4E6; color: #F43F5E; border-radius: 10px; }
+.ic-blue    { background-color: #E0F2FE; color: #0284C7; border-radius: 10px; }
+.ic-purple  { background-color: #EDE9FE; color: #9333EA; border-radius: 10px; }
+.ic-amber   { background-color: #FEF3C7; color: #D97706; border-radius: 10px; }
+.ic-neutral { background-color: #FEF3C7; color: #92400E; border-radius: 10px; }
+
+/* MetricCard value colors */
+.val-green   { color: #059669; }
+.val-red     { color: #F43F5E; }
+.val-blue    { color: #0284C7; }
+.val-purple  { color: #9333EA; }
+.val-amber   { color: #D97706; }
+.val-neutral { color: #78350F; }
+
+/* MetricCard label colors */
+.lbl-green   { color: rgba(5,   150, 105, 0.65); }
+.lbl-red     { color: rgba(244,  63,  94, 0.65); }
+.lbl-blue    { color: rgba(2,   132, 199, 0.65); }
+.lbl-purple  { color: rgba(147,  51, 234, 0.65); }
+.lbl-amber   { color: rgba(217, 119,   6, 0.65); }
+.lbl-neutral { color: rgba(120,  53,  15, 0.55); }
+
+/* Quick action tile colors */
+.qa-green   { background-color: #ECFDF5; border-color: #A7F3D0; }
+.qa-sky     { background-color: #F0F9FF; border-color: #BAE6FD; }
+.qa-purple  { background-color: #FAF5FF; border-color: #DDD6FE; }
+.qa-amber   { background-color: #FFFBEB; border-color: #FDE68A; }
+
+.qa-icon-green  { background-color: #D1FAE5; color: #059669; }
+.qa-icon-sky    { background-color: #E0F2FE; color: #0284C7; }
+.qa-icon-purple { background-color: #EDE9FE; color: #9333EA; }
+.qa-icon-amber  { background-color: #FEF3C7; color: #D97706; }
+
+/* Segmented control */
+.et-segment-bar { background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 12px; padding: 4px; }
+.et-segment-btn { color: rgba(120,53,15,0.55); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 500; transition: all 150ms ease; border: none; background: none; cursor: pointer; }
+.et-segment-btn:hover { color: rgba(120,53,15,0.8); }
+.et-segment-btn.active { background-color: #ffffff; color: #134e4a; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Suggestion card */
+.et-suggestion { background-color: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; font-size: 13.5px; color: rgba(19,78,74,0.8); line-height: 1.6; }
+
+/* Chart container */
+.et-chart-card { background-color: #ffffff; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+
+/* ─── Toast animation ────────────────────────────────────────────────────── */
+
+@keyframes et-toast-in {
+  from { opacity: 0; transform: translate(-50%, -12px) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, 0)    scale(1);    }
+}
+.et-toast {
+  animation: et-toast-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
 /* ─── MUI Glass System ────────────────────────────────────────────────────── */
 
 .MuiPaper-root:not(.MuiAppBar-root) {
-  background-color: rgba(255, 255, 255, 0.14) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(0, 0, 0, 0.07) !important;
   box-shadow:
-    0 2px 8px rgba(0,0,0,0.06),
+    0 1px 3px rgba(0,0,0,0.07),
     0 1px 2px rgba(0,0,0,0.04) !important;
 }
 
-/* Table container: more opaque for readability */
 .MuiTableContainer-root.MuiPaper-root {
-  background-color: rgba(255, 255, 255, 0.90) !important;
-  backdrop-filter: blur(20px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border-radius: 16px !important;
   overflow: hidden !important;
-}
-
-.MuiPaper-root[style*="background-color"] {
-  background-color: inherit !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
 }
 
 /* ─── MUI Table ───────────────────────────────────────────────────────────── */
 
 /* Header */
 .MuiTable-root thead .MuiTableCell-root {
-  background-color: rgba(250, 250, 249, 0.96) !important;
+  background-color: #F9FAFB !important;
   color: #71717A !important;
   font-size: 11px !important;
   font-weight: 600 !important;
@@ -229,9 +338,7 @@ body {
 .MuiOutlinedInput-root {
   border-radius: 10px !important;
   font-size: 14px !important;
-  background-color: rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  background-color: #ffffff !important;
   transition: box-shadow 120ms ease !important;
 }
 

@@ -9,20 +9,10 @@ export function Card({ glass = false, className, children, ...props }: CardProps
   return (
     <div
       className={cn(
-        'rounded-xl p-5 transition-all duration-[var(--duration-normal)]',
+        // et-card is defined in globals.css — always renders, no Tailwind scanning required
         glass
-          ? [
-              'bg-white/10 backdrop-blur-[16px] saturate-[1.6]',
-              'border border-white/[0.18]',
-              'shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)]',
-            ]
-          : [
-              'bg-white',
-              'border border-black/[0.07]',
-              'shadow-[0_1px_3px_rgba(0,0,0,0.07),0_1px_2px_rgba(0,0,0,0.05)]',
-              'hover:shadow-[0_4px_8px_rgba(0,0,0,0.08),0_2px_4px_rgba(0,0,0,0.05)]',
-              'hover:-translate-y-px',
-            ],
+          ? 'rounded-2xl p-5 bg-white/10 backdrop-blur-[16px] saturate-[1.6] border border-white/[0.18] shadow-[0_8px_32px_rgba(0,0,0,0.08)]'
+          : 'et-card p-5',
         className,
       )}
       {...props}

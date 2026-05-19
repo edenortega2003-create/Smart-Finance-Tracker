@@ -1,78 +1,83 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useStore } from '../store/useStore';
 import {
-  Paper,
-  Typography,
-  Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  LinearProgress,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@mui/material';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+  LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts';
+import {
+  TrendingUp, TrendingDown, Wallet, BarChart2, Tag, Coffee, Zap,
+  Plus, ArrowLeftRight, Settings,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useTranslation } from '../hooks/useTranslation';
 import { SkeletonLoader } from '../components/Loader';
 import { getDailyPhrase } from '../utils/motivationalPhrases';
-import { getPeriodMetrics, getDailySuggestions, DEFAULT_DAILY_LIMIT, type Period, PERIOD_LABELS } from '../utils/financialSuggestions';
+import {
+  getPeriodMetrics, getDailySuggestions, DEFAULT_DAILY_LIMIT,
+  type Period, PERIOD_LABELS,
+} from '../utils/financialSuggestions';
 import { getClassificationLabel } from '../utils/classifySuggestion';
 import type { ExpenseClassification, IncomeClassification } from '../types';
+import { MetricCard } from '../components/financial/MetricCard';
+import { Progress } from '../components/ui/Progress';
 
-// ── Shared styles ──────────────────────────────────────────────────────────
+// Inline style values — guaranteed to render regardless of Tailwind scanning
+const INCOME_COLOR  = '#10B981';
+const EXPENSE_COLOR = '#FB7185';
 
-const glassCardSx = {
-  backdropFilter: 'blur(20px)',
-  border: '1px solid rgba(255, 255, 255, 0.2)',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  position: 'relative' as const,
-  overflow: 'hidden' as const,
-  '&::before': {
-    content: '""',
-    position: 'absolute' as const,
-    top: 0, left: 0, right: 0, bottom: 0,
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-    pointerEvents: 'none' as const,
-    zIndex: -1,
-  },
+const HERO_STYLE: React.CSSProperties = {
+  background:    'linear-gradient(135deg, #10B981 0%, #14B8A6 50%, #06B6D4 100%)',
+  borderRadius:  '24px',
+  padding:       '24px',
+  position:      'relative',
+  overflow:      'hidden',
+  boxShadow:     '0 20px 60px rgba(16,185,129,0.28), 0 8px 20px rgba(16,185,129,0.18)',
+  marginBottom:  '16px',
 };
 
-const chartPaperSx = {
-  py: 3,
-  mb: 4,
-  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  backdropFilter: 'blur(20px)',
-  border: '1px solid rgba(255, 255, 255, 0.2)',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  borderRadius: 2,
-  position: 'relative' as const,
-  overflow: 'hidden' as const,
-  '&::before': {
-    content: '""',
-    position: 'absolute' as const,
-    top: 0, left: 0, right: 0, bottom: 0,
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-    pointerEvents: 'none' as const,
-    zIndex: -1,
-  },
+const mxnFmt = new Intl.NumberFormat('es-MX', {
+  style: 'currency', currency: 'MXN',
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
+});
+
+const ChartTooltip = ({ active, payload, label }: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ borderRadius: '12px', backgroundColor: 'rgba(19,43,45,0.92)', backdropFilter: 'blur(8px)', border: '1px solid rgba(153,246,228,0.2)', padding: '10px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+      {label && <p style={{ fontSize: '11px', color: '#99F6E4', marginBottom: '6px' }}>{label}</p>}
+      {payload.map(entry => (
+        <p key={entry.name} style={{ fontSize: '13px', fontWeight: 600, color: entry.color, fontVariantNumeric: 'tabular-nums' }}>
+          {entry.name}: {mxnFmt.format(entry.value)}
+        </p>
+      ))}
+    </div>
+  );
 };
 
-// ── Component ──────────────────────────────────────────────────────────────
+// Quick action configuration — uses globals.css classes for tile/icon colors
+const quickActions = [
+  { label: 'Agregar',     tileClass: 'qa-green',  iconClass: 'qa-icon-green',  icon: <Plus           size={20} />, isFab: true,  href: null             },
+  { label: 'Historial',   tileClass: 'qa-sky',    iconClass: 'qa-icon-sky',    icon: <ArrowLeftRight size={20} />, isFab: false, href: '/transactions'  },
+  { label: 'Categorías',  tileClass: 'qa-purple', iconClass: 'qa-icon-purple', icon: <Tag            size={20} />, isFab: false, href: '/categories'    },
+  { label: 'Ajustes',     tileClass: 'qa-amber',  iconClass: 'qa-icon-amber',  icon: <Settings       size={20} />, isFab: false, href: '/settings'      },
+] as const;
 
 export default function HomePage() {
-  const { transactions, settings } = useStore();
-  const [selectedMonthlyYear, setSelectedMonthlyYear] = useState<string>(new Date().getFullYear().toString());
-  const [selectedPeriod, setSelectedPeriod]           = useState<Period>('today');
-
-  const getCurrencySymbol = (s: string) => s.split(' ').at(-1) ?? '';
-  const cur = getCurrencySymbol(settings.currency);
-
+  const { transactions } = useStore();
+  const [selectedMonthlyYear, setSelectedMonthlyYear] = useState<string>(
+    new Date().getFullYear().toString(),
+  );
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>('today');
   const { t, loading } = useTranslation();
 
-  // ── Global totals (all time) ───────────────────────────────────────────
+  // ── Global totals — unchanged logic ───────────────────────────────────────
   const totalIncome   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const totalBalance  = totalIncome - totalExpenses;
@@ -89,8 +94,10 @@ export default function HomePage() {
     ? getClassificationLabel(topOverallKey as ExpenseClassification | IncomeClassification, 'expense')
     : '—';
 
-  // ── Chart data ─────────────────────────────────────────────────────────
-  const years = Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))).sort();
+  // ── Chart data — unchanged logic ───────────────────────────────────────────
+  const years = Array.from(
+    new Set(transactions.map(t => new Date(t.date).getFullYear().toString())),
+  ).sort();
 
   const months = [
     { value: '1',  label: 'January'   }, { value: '2',  label: 'February'  },
@@ -108,7 +115,7 @@ export default function HomePage() {
   }));
 
   const monthlyData = months.map(m => ({
-    month: m.label,
+    month: m.label.slice(0, 3),
     income:  transactions.filter(t => new Date(t.date).getMonth() === (parseInt(m.value, 10) - 1) && new Date(t.date).getFullYear().toString() === selectedMonthlyYear && t.type === 'income').reduce((s, t) => s + t.amount, 0),
     expense: transactions.filter(t => new Date(t.date).getMonth() === (parseInt(m.value, 10) - 1) && new Date(t.date).getFullYear().toString() === selectedMonthlyYear && t.type === 'expense').reduce((s, t) => s + t.amount, 0),
   }));
@@ -126,249 +133,273 @@ export default function HomePage() {
     spending: categorySpending[category],
   }));
 
-  // ── Period metrics ─────────────────────────────────────────────────────
+  // ── Period metrics — unchanged logic ───────────────────────────────────────
   const periodMetrics = getPeriodMetrics(transactions, selectedPeriod);
   const suggestions   = getDailySuggestions(transactions);
   const dailyPhrase   = getDailyPhrase();
 
   if (loading) {
-    return <Box sx={{ pt: 1 }}><SkeletonLoader /></Box>;
+    return <div className="pt-2"><SkeletonLoader /></div>;
   }
 
   return (
-    <>
-      <Box sx={{ pt: 1 }}>
+    <div className="pt-2 pb-12">
 
-        <Typography variant="h4" component="h1" gutterBottom>
-          {t.expense_tracker}
-        </Typography>
-
-        {/* Frase motivacional */}
-        <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary', mb: 3, opacity: 0.75 }}>
+      {/* ── Motivational phrase ────────────────────────────────────────────── */}
+      <div className="flex items-start gap-2 mb-6">
+        <Zap size={13} style={{ color: '#F59E0B', flexShrink: 0, marginTop: '2px' }} aria-hidden="true" />
+        <p style={{ fontSize: '13px', color: 'rgba(120,53,15,0.5)', fontStyle: 'italic', lineHeight: 1.6, margin: 0 }}>
           &ldquo;{dailyPhrase}&rdquo;
-        </Typography>
+        </p>
+      </div>
 
-        {/* ── RESUMEN ACTUAL ────────────────────────────────────────────
-            Siempre visible. No depende del filtro de período.            */}
-        <Typography variant="h6" component="h2" gutterBottom>
-          Resumen actual
-        </Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 4 }}>
+      {/* ══ HERO: Balance total ════════════════════════════════════════════════ */}
+      <div style={HERO_STYLE}>
+        {/* Decorative orbs — inline style, guaranteed to render */}
+        <div style={{ position: 'absolute', top: '-56px', right: '-56px', width: '224px', height: '224px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.08)', filter: 'blur(40px)', pointerEvents: 'none' }} aria-hidden="true" />
+        <div style={{ position: 'absolute', bottom: '-80px', left: '-32px', width: '208px', height: '208px', borderRadius: '50%', backgroundColor: 'rgba(52,211,153,0.14)', filter: 'blur(40px)', pointerEvents: 'none' }} aria-hidden="true" />
 
-          <Paper elevation={0} sx={{
-            ...glassCardSx, p: 2,
-            bgcolor: totalBalance >= 0 ? 'rgba(2,136,209,0.15)' : 'rgba(211,47,47,0.15)',
-            color:   totalBalance >= 0 ? 'info.main'            : 'error.main',
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* Label row */}
+          <div className="flex items-center justify-between" style={{ marginBottom: '12px' }}>
+            <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.70)', margin: 0 }}>
+              Balance Total
+            </p>
+            <div style={{ width: '36px', height: '36px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden="true">
+              <Wallet size={16} style={{ color: '#ffffff' }} />
+            </div>
+          </div>
+
+          {/* Balance number */}
+          <p style={{
+            fontSize: 'clamp(36px, 8vw, 52px)',
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1,
+            letterSpacing: '-0.02em',
+            color: totalBalance < 0 ? '#FDA4AF' : '#ffffff',
+            margin: 0,
           }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Balance total</Typography>
-            <Typography variant="h6">
-              {totalBalance >= 0 ? '+' : ''}{cur} {totalBalance.toFixed(2)}
-            </Typography>
-          </Paper>
+            {mxnFmt.format(totalBalance)}
+          </p>
+          {totalBalance < 0 && (
+            <p style={{ fontSize: '12px', color: '#FDA4AF', marginTop: '6px', fontWeight: 500 }}>En déficit</p>
+          )}
 
-          <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(76,175,80,0.15)', color: 'success.main' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Ingresos totales</Typography>
-            <Typography variant="h6">{cur} {totalIncome.toFixed(2)}</Typography>
-          </Paper>
+          {/* Income / Expense pills */}
+          <div className="flex flex-wrap gap-3" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', borderRadius: '12px', padding: '10px 16px' }}>
+              <TrendingUp size={13} style={{ color: '#6EE7B7', flexShrink: 0 }} aria-hidden="true" />
+              <div>
+                <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', fontWeight: 500, lineHeight: 1, marginBottom: '2px', margin: 0 }}>Ingresos</p>
+                <p style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums', lineHeight: 1, margin: 0 }}>
+                  {mxnFmt.format(totalIncome)}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', borderRadius: '12px', padding: '10px 16px' }}>
+              <TrendingDown size={13} style={{ color: '#FCA5A5', flexShrink: 0 }} aria-hidden="true" />
+              <div>
+                <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', fontWeight: 500, lineHeight: 1, marginBottom: '2px', margin: 0 }}>Gastos</p>
+                <p style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums', lineHeight: 1, margin: 0 }}>
+                  {mxnFmt.format(totalExpenses)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(211,47,47,0.15)', color: 'error.main' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Gastos totales</Typography>
-            <Typography variant="h6">{cur} {totalExpenses.toFixed(2)}</Typography>
-          </Paper>
+      {/* ══ ACCIONES RÁPIDAS ══════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-4 gap-2" style={{ marginBottom: '32px' }} role="navigation" aria-label="Acciones rápidas">
+        {quickActions.map((action) => {
+          const tileContent = (
+            <div
+              className={cn('et-card flex flex-col items-center gap-2 p-3', action.tileClass)}
+              style={{ cursor: 'pointer', border: '1px solid' }}
+            >
+              <span
+                className={cn('flex items-center justify-center', action.iconClass)}
+                style={{ width: '40px', height: '40px', borderRadius: '12px' }}
+                aria-hidden="true"
+              >
+                {action.icon}
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#374151', textAlign: 'center', lineHeight: 1.2 }}>
+                {action.label}
+              </span>
+            </div>
+          );
 
-          <Paper elevation={0} sx={{
-            ...glassCardSx, p: 2,
-            bgcolor: totalBalance >= 0 ? 'rgba(56,142,60,0.15)'  : 'rgba(255,152,0,0.15)',
-            color:   totalBalance >= 0 ? 'success.dark'           : 'warning.main',
-          }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Disponible</Typography>
-            <Typography variant="h6">
-              {cur} {Math.abs(totalBalance).toFixed(2)}
-              {totalBalance < 0 && (
-                <Typography component="span" variant="caption" sx={{ ml: 0.5 }}>
-                  déficit
-                </Typography>
-              )}
-            </Typography>
-          </Paper>
+          if (action.isFab) {
+            return (
+              <button
+                key={action.label}
+                type="button"
+                aria-label={action.label}
+                style={{ all: 'unset', display: 'block', width: '100%' }}
+                onClick={() => {
+                  const fab = document.querySelector<HTMLButtonElement>('[aria-label="Agregar transacción"]');
+                  fab?.click();
+                }}
+              >
+                {tileContent}
+              </button>
+            );
+          }
 
-          <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(96,125,139,0.15)' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Total movimientos</Typography>
-            <Typography variant="h6">{transactions.length}</Typography>
-          </Paper>
+          return (
+            <Link key={action.label} href={action.href!} style={{ textDecoration: 'none', display: 'block' }}>
+              {tileContent}
+            </Link>
+          );
+        })}
+      </div>
 
-          <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(103,58,183,0.15)', color: 'secondary.main' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>Mayor gasto acumulado</Typography>
-            <Typography variant="h6" sx={{ fontSize: '1rem' }}>{topOverallLabel}</Typography>
-          </Paper>
+      {/* ── Resumen general ───────────────────────────────────────────────── */}
+      <p style={{ fontSize: '13px', fontWeight: 600, color: '#134e4a', marginBottom: '12px' }}>Resumen general</p>
+      <div className="grid grid-cols-2 gap-3" style={{ marginBottom: '32px' }}>
+        <MetricCard label="Disponible"   value={Math.abs(totalBalance)} color={totalBalance >= 0 ? 'green' : 'amber'} subtext={totalBalance < 0 ? 'en déficit' : undefined} />
+        <MetricCard label="Movimientos"  value={String(transactions.length)} color="neutral" icon={<BarChart2 size={15} />} />
+        <MetricCard label="Mayor gasto"  value={topOverallLabel} color="purple" icon={<Tag size={15} />} className="col-span-2" />
+      </div>
 
-        </Box>
+      {/* ══ RESUMEN DEL PERIODO ════════════════════════════════════════════════ */}
+      <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: '16px' }}>
+        <p style={{ fontSize: '13px', fontWeight: 600, color: '#134e4a', margin: 0 }}>Resumen del periodo</p>
 
-        {/* ── RESUMEN DEL PERIODO ───────────────────────────────────────
-            Filtro: Hoy / Ayer / Esta semana / Este mes                  */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-          <Typography variant="h6" component="h2">
-            Resumen del periodo
-          </Typography>
-          <ToggleButtonGroup
-            value={selectedPeriod}
-            exclusive
-            onChange={(_e, v: Period | null) => { if (v) setSelectedPeriod(v); }}
-            size="small"
-          >
-            {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
-              <ToggleButton key={p} value={p} sx={{ textTransform: 'none', fontSize: '0.8rem', py: 0.5, px: 1.5 }}>
-                {PERIOD_LABELS[p]}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        </Box>
+        {/* Segmented control — uses et-segment-* classes from globals.css */}
+        <div className="et-segment-bar flex gap-1">
+          {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setSelectedPeriod(p)}
+              className={cn('et-segment-btn', selectedPeriod === p && 'active')}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        {periodMetrics.transactionCount === 0 ? (
-          <Paper elevation={0} sx={{ ...glassCardSx, p: 3, mb: 3, bgcolor: 'rgba(255,255,255,0.06)', textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              No hay movimientos en este periodo. Revisa otro periodo o registra un nuevo movimiento.
-            </Typography>
-          </Paper>
-        ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
+      {periodMetrics.transactionCount === 0 ? (
+        <div className="et-card" style={{ padding: '32px', textAlign: 'center', marginBottom: '24px' }}>
+          <p style={{ fontSize: '14px', color: '#0f766e', fontWeight: 500, margin: 0 }}>Sin movimientos en este periodo</p>
+          <p style={{ fontSize: '12px', color: 'rgba(15,118,110,0.55)', marginTop: '4px', marginBottom: 0 }}>Registra un movimiento para ver estadísticas.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3" style={{ marginBottom: '16px' }}>
+          <MetricCard label="Gasto"       value={periodMetrics.totalExpense}                      color="red"     icon={<TrendingDown size={15} />} />
+          <MetricCard label="Ingreso"      value={periodMetrics.totalIncome}                       color="green"   icon={<TrendingUp   size={15} />} />
+          <MetricCard label="Balance"      value={periodMetrics.balance}                           color={periodMetrics.balance >= 0 ? 'blue' : 'red'} className="col-span-2" />
+          <MetricCard label="Hormiga"      value={periodMetrics.hormigas}                          color="amber"   icon={<Coffee    size={15} />} />
+          <MetricCard label="Mayor gasto"  value={periodMetrics.topClassificationLabel ?? '—'}     color="purple"  icon={<Tag       size={15} />} />
+          <MetricCard label="Movimientos"  value={String(periodMetrics.transactionCount)}           color="neutral" icon={<BarChart2 size={15} />} />
+        </div>
+      )}
 
-            <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(211,47,47,0.15)', color: 'error.main' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Gasto</Typography>
-              <Typography variant="h6">{cur} {periodMetrics.totalExpense.toFixed(2)}</Typography>
-            </Paper>
-
-            <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(76,175,80,0.15)', color: 'success.main' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Ingreso</Typography>
-              <Typography variant="h6">{cur} {periodMetrics.totalIncome.toFixed(2)}</Typography>
-            </Paper>
-
-            <Paper elevation={0} sx={{
-              ...glassCardSx, p: 2,
-              bgcolor: 'rgba(2,136,209,0.15)',
-              color:   periodMetrics.balance >= 0 ? 'success.main' : 'error.main',
+      {/* ── Límite diario ─────────────────────────────────────────────────── */}
+      {selectedPeriod === 'today' && periodMetrics.transactionCount > 0 && (
+        <div
+          className="et-card"
+          style={{
+            padding: '20px',
+            marginBottom: '24px',
+            backgroundColor: periodMetrics.dailyLimitExceeded ? '#FFF1F2' : '#FFFBEB',
+            borderColor:     periodMetrics.dailyLimitExceeded ? '#FECDD3' : '#FDE68A',
+          }}
+        >
+          <div className="flex items-center justify-between" style={{ marginBottom: '16px' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: periodMetrics.dailyLimitExceeded ? '#F43F5E' : '#92400E', margin: 0 }}>
+              {periodMetrics.dailyLimitExceeded ? '⚠ Límite diario superado' : 'Límite diario'}
+            </p>
+            <span style={{
+              fontSize: '22px', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+              color: periodMetrics.dailyLimitProgress >= 90 ? '#F43F5E' : periodMetrics.dailyLimitProgress >= 70 ? '#D97706' : '#059669',
             }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Balance</Typography>
-              <Typography variant="h6">
-                {periodMetrics.balance >= 0 ? '+' : ''}{cur} {periodMetrics.balance.toFixed(2)}
-              </Typography>
-            </Paper>
+              {Math.min(periodMetrics.dailyLimitProgress, 100).toFixed(0)}%
+            </span>
+          </div>
+          <Progress value={periodMetrics.dailyLimitProgress} current={periodMetrics.totalExpense} limit={DEFAULT_DAILY_LIMIT} showLabels />
+        </div>
+      )}
 
-            <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(255,152,0,0.15)', color: 'warning.main' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Hormiga</Typography>
-              <Typography variant="h6">{cur} {periodMetrics.hormigas.toFixed(2)}</Typography>
-            </Paper>
+      {/* ── Sugerencias del día ───────────────────────────────────────────── */}
+      {suggestions.length > 0 && (
+        <section aria-label="Sugerencias del día" style={{ marginBottom: '32px' }}>
+          <p style={{ fontSize: '13px', fontWeight: 600, color: '#134e4a', marginBottom: '12px' }}>Sugerencias del día</p>
+          {suggestions.map((s, i) => (
+            <div key={i} className="et-suggestion">{s}</div>
+          ))}
+        </section>
+      )}
 
-            <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(103,58,183,0.15)', color: 'secondary.main' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Mayor gasto</Typography>
-              <Typography variant="h6" sx={{ fontSize: '1rem' }}>
-                {periodMetrics.topClassificationLabel ?? '—'}
-              </Typography>
-            </Paper>
+      {/* ══ ESTADÍSTICAS ══════════════════════════════════════════════════════ */}
+      <p style={{ fontSize: '13px', fontWeight: 600, color: '#134e4a', marginBottom: '16px' }}>Estadísticas</p>
 
-            <Paper elevation={0} sx={{ ...glassCardSx, p: 2, bgcolor: 'rgba(96,125,139,0.15)' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>Movimientos</Typography>
-              <Typography variant="h6">{periodMetrics.transactionCount}</Typography>
-            </Paper>
-
-          </Box>
-        )}
-
-        {/* Límite diario — solo cuando período = Hoy y hay movimientos */}
-        {selectedPeriod === 'today' && periodMetrics.transactionCount > 0 && (
-          <Paper elevation={0} sx={{
-            ...glassCardSx, p: 2, mb: 3,
-            bgcolor: periodMetrics.dailyLimitExceeded ? 'rgba(211,47,47,0.15)' : 'rgba(255,255,255,0.08)',
-          }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: periodMetrics.dailyLimitExceeded ? 'error.main' : 'text.primary' }}>
-                {periodMetrics.dailyLimitExceeded ? '⚠ Límite diario superado' : 'Límite diario'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {cur} {periodMetrics.totalExpense.toFixed(2)} / {cur} {DEFAULT_DAILY_LIMIT}
-              </Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={periodMetrics.dailyLimitProgress}
-              color={periodMetrics.dailyLimitExceeded ? 'error' : periodMetrics.dailyLimitProgress > 80 ? 'warning' : 'primary'}
-              sx={{ height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.1)' }}
-            />
-          </Paper>
-        )}
-
-        {/* Sugerencias del día — siempre basadas en hoy */}
-        {suggestions.length > 0 && (
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" component="h2" gutterBottom>
-              Sugerencias del día
-            </Typography>
-            {suggestions.map((s, i) => (
-              <Paper key={i} elevation={0} sx={{ ...glassCardSx, p: 2, mb: 1, bgcolor: 'rgba(255,255,255,0.08)' }}>
-                <Typography variant="body2">{s}</Typography>
-              </Paper>
-            ))}
-          </Box>
-        )}
-
-        {/* ── GRÁFICAS ────────────────────────────────────────────────── */}
-        <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 4 }}>
+      {/* Vista anual */}
+      <div className="et-chart-card" style={{ marginBottom: '16px' }}>
+        <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'rgba(120,53,15,0.5)', marginBottom: '16px', margin: '0 0 16px' }}>
           Vista anual
-        </Typography>
-        <Paper elevation={0} sx={chartPaperSx}>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={yearlyData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis />
-              <Tooltip formatter={(value: number) => `${cur} ${value.toFixed(2)}`} />
-              <Legend />
-              <Line type="monotone" dataKey="income"  stroke="#82ca9d" activeDot={{ r: 8 }} />
-              <Line type="monotone" dataKey="expense" stroke="#8884d8" />
-            </LineChart>
-          </ResponsiveContainer>
-        </Paper>
+        </p>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={yearlyData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" strokeOpacity={0.8} />
+            <XAxis dataKey="year"  tick={{ fontSize: 11, fill: '#A8A29E' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => mxnFmt.format(v)} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
+            <Line type="monotone" dataKey="income"  name="Ingresos" stroke={INCOME_COLOR}  strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+            <Line type="monotone" dataKey="expense" name="Gastos"   stroke={EXPENSE_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 4, mb: 2 }}>
-          <Typography variant="h5" component="h2">Vista mensual</Typography>
-          <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel>Año</InputLabel>
-            <Select value={selectedMonthlyYear} onChange={e => setSelectedMonthlyYear(e.target.value)} label="Año">
-              {years.map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
-            </Select>
-          </FormControl>
-        </Box>
-        <Paper elevation={0} sx={chartPaperSx}>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value: number) => `${cur} ${value.toFixed(2)}`} />
-              <Legend />
-              <Line type="monotone" dataKey="income"  stroke="#82ca9d" activeDot={{ r: 8 }} />
-              <Line type="monotone" dataKey="expense" stroke="#8884d8" />
-            </LineChart>
-          </ResponsiveContainer>
-        </Paper>
+      {/* Vista mensual */}
+      <div className="et-chart-card" style={{ marginBottom: '16px' }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'rgba(120,53,15,0.5)', margin: 0 }}>
+            Vista mensual
+          </p>
+          <select
+            value={selectedMonthlyYear}
+            onChange={e => setSelectedMonthlyYear(e.target.value)}
+            style={{ height: '28px', borderRadius: '8px', border: '1px solid #FDE68A', padding: '0 10px', fontSize: '12px', color: '#78350F', backgroundColor: '#ffffff', cursor: 'pointer', outline: 'none' }}
+          >
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" strokeOpacity={0.8} />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#A8A29E' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => mxnFmt.format(v)} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
+            <Line type="monotone" dataKey="income"  name="Ingresos" stroke={INCOME_COLOR}  strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+            <Line type="monotone" dataKey="expense" name="Gastos"   stroke={EXPENSE_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-        <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 4 }}>
+      {/* Gasto por concepto */}
+      <div className="et-chart-card">
+        <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'rgba(120,53,15,0.5)', margin: '0 0 16px' }}>
           Gasto por concepto
-        </Typography>
-        <Paper elevation={0} sx={chartPaperSx}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={categoryChartData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="category" />
-              <YAxis />
-              <Tooltip formatter={(value: number) => `${cur} ${value.toFixed(2)}`} />
-              <Legend />
-              <Bar dataKey="spending" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Paper>
+        </p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={categoryChartData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" strokeOpacity={0.8} />
+            <XAxis dataKey="category" tick={{ fontSize: 11, fill: '#A8A29E' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => mxnFmt.format(v)} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
+            <Bar dataKey="spending" name="Gasto" fill={EXPENSE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={48} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-      </Box>
-    </>
+    </div>
   );
 }

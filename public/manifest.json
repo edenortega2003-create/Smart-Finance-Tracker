@@ -1,12 +1,12 @@
 
 {
-  "name": "Expense Tracker",
-  "short_name": "Expenses",
-  "description": "A simple PWA expense tracker.",
-  "start_url": "/",
+  "name": "MentHabit",
+  "short_name": "MentHabit",
+  "description": "Tu compañero de hábitos financieros.",
+  "start_url": "/registro",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#FFFDF7",
+  "theme_color": "#10B981",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",

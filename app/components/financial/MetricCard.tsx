@@ -1,6 +1,5 @@
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { Card } from '../ui/Card';
 import { Skeleton } from '../ui/Skeleton';
 import type { AmountColor } from './AmountDisplay';
 
@@ -25,25 +24,6 @@ const colorMap: Record<MetricColor, Exclude<AmountColor, 'auto'>> = {
   purple:  'purple',
   amber:   'amber',
   neutral: 'neutral',
-};
-
-// Psychologically warm: emerald for positive, rose for negative (not alarm red)
-const valueColorClasses: Record<MetricColor, string> = {
-  green:   'text-emerald-600',
-  red:     'text-rose-500',
-  blue:    'text-blue-600',
-  purple:  'text-violet-600',
-  amber:   'text-amber-600',
-  neutral: 'text-zinc-800',
-};
-
-const iconBgClasses: Record<MetricColor, string> = {
-  green:   'bg-emerald-500/10 text-emerald-600',
-  red:     'bg-rose-500/10 text-rose-500',
-  blue:    'bg-blue-500/10 text-blue-600',
-  purple:  'bg-violet-500/10 text-violet-600',
-  amber:   'bg-amber-500/10 text-amber-600',
-  neutral: 'bg-zinc-500/10 text-zinc-500',
 };
 
 const mxnFormatter = new Intl.NumberFormat('es-MX', {
@@ -73,19 +53,19 @@ export function MetricCard({
     return <Skeleton className={cn('h-28', className)} />;
   }
 
+  // Use explicit CSS classes from globals.css — bypasses Tailwind v4 scanning issue
   return (
-    <Card glass={glass} className={cn('flex flex-col gap-2.5 p-5', className)}>
-      {/* Label row */}
+    <div
+      className={cn('et-card flex flex-col gap-2 p-5', `mc-${color}`, className)}
+    >
+      {/* Label + icon */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
+        <span className={cn('text-[11px] font-semibold uppercase tracking-widest', `lbl-${color}`)}>
           {label}
         </span>
         {icon && (
           <span
-            className={cn(
-              'shrink-0 flex items-center justify-center w-7 h-7 rounded-lg',
-              iconBgClasses[color],
-            )}
+            className={cn('shrink-0 flex items-center justify-center w-7 h-7', `ic-${color}`)}
             aria-hidden="true"
           >
             {icon}
@@ -93,23 +73,18 @@ export function MetricCard({
         )}
       </div>
 
-      {/* Value — the most important thing on the card */}
-      <span
-        className={cn(
-          'text-[22px] font-bold tabular-nums leading-none tracking-tight',
-          valueColorClasses[color],
-        )}
-      >
+      {/* Value */}
+      <span className={cn('text-[22px] font-bold tabular-nums leading-none tracking-tight', `val-${color}`)}>
         {formatValue(value)}
       </span>
 
-      {/* Subtext — supporting context */}
+      {/* Subtext */}
       {subtext && (
-        <p className="text-[12px] text-zinc-400 leading-snug mt-0.5">
+        <p className={cn('text-[12px] leading-snug mt-0.5', `lbl-${color}`)}>
           {subtext}
         </p>
       )}
-    </Card>
+    </div>
   );
 }
 
