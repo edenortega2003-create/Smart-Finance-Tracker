@@ -93,11 +93,6 @@
   "importing": "Importando dados...",
   "exporting": "Exportando dados...",
   "please_wait": "Por favor, aguarde...",
-  "select_background": "Selecionar Imagem de Fundo",
-  "background_opacity": "Opacidade do Fundo",
-  "background_image": "Imagem de Fundo",
-  "choose_background_image": "Escolher Imagem de Fundo",
-  "select_background_description": "Selecione uma imagem de fundo para seu rastreador de despesas",
   "back": "Voltar",
   "data_management": "Gerenciamento de Dados",
   "user_preferences": "Preferências do Usuário"

@@ -64,6 +64,4 @@ export interface AppSettings {
   currency: Currency;
   userName: string;
   language: Language;
-  backgroundImage?: string;
-  backgroundOpacity?: number;
 }

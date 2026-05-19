@@ -93,11 +93,6 @@
   "importing": "ডেটা ইম্পোর্ট হচ্ছে...",
   "exporting": "ডেটা এক্সপোর্ট হচ্ছে...",
   "please_wait": "অনুগ্রহ করে অপেক্ষা করুন...",
-  "select_background": "ব্যাকগ্রাউন্ড সিলেক্ট করুন",
-  "background_opacity": "ব্যাকগ্রাউন্ড এর ওপাসিটি",
-  "background_image": "ব্যাকগ্রাউন্ড ছবি",
-  "choose_background_image": "ব্যাকগ্রাউন্ড ছবি বেছে নিন",
-  "select_background_description": "আপনার খরচ ট্র্যাকারের জন্য একটি ব্যাকগ্রাউন্ড সিলেক্ট করুন",
   "back": "ফিরে যান",
   "data_management": "ডেটা ব্যবস্থাপনা",
   "user_preferences": "ব্যবহারকারীর পছন্দ"

@@ -46,8 +46,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return t.categories || 'Categories';
     } else if (pathname === '/transactions') {
       return t.transactions || 'Transactions';
-    } else if (pathname === '/settings/select-background') {
-      return t.select_background || 'Select Background';
     } else if (pathname.startsWith('/settings')) {
       return t.settings || 'Settings';
     } else {
