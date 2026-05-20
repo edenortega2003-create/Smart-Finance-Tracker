@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useStore } from '../store/useStore';
 import {
@@ -23,6 +23,7 @@ import { getClassificationLabel } from '../utils/classifySuggestion';
 import type { ExpenseClassification, IncomeClassification } from '../types';
 import { MetricCard } from '../components/financial/MetricCard';
 import { Progress } from '../components/ui/Progress';
+import { computeHabitStats } from '../utils/habitGroups';
 
 // Inline style values — guaranteed to render regardless of Tailwind scanning
 const INCOME_COLOR  = '#10B981';
@@ -133,6 +134,13 @@ export default function HomePage() {
     spending: categorySpending[category],
   }));
 
+  // ── Habit stats (this month, top 4 active groups) ─────────────────────────
+  const { topHabits, maxHabitTotal } = useMemo(() => {
+    const stats  = computeHabitStats(transactions);
+    const active = stats.filter(s => s.count > 0).slice(0, 4);
+    return { topHabits: active, maxHabitTotal: active[0]?.monthlyTotal ?? 0 };
+  }, [transactions]);
+
   // ── Period metrics — unchanged logic ───────────────────────────────────────
   const periodMetrics = getPeriodMetrics(transactions, selectedPeriod);
   const suggestions   = getDailySuggestions(transactions);
@@ -140,6 +148,60 @@ export default function HomePage() {
 
   if (loading) {
     return <div className="pt-2"><SkeletonLoader /></div>;
+  }
+
+  if (transactions.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: '48px', paddingBottom: '48px' }}>
+        {/* M-balanza logo */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '72px', height: '72px', borderRadius: '22px',
+          background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+          boxShadow: '0 16px 40px rgba(16,185,129,0.28)',
+          marginBottom: '24px',
+        }}>
+          <svg width="38" height="38" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M3 17V5L11 12L19 5V17" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="11" y1="17" x2="11" y2="20" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="7" y1="20" x2="15" y2="20" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="7" cy="20" r="1" fill="white" />
+            <circle cx="15" cy="20" r="1" fill="white" />
+          </svg>
+        </div>
+
+        <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#111827', margin: '0 0 10px', letterSpacing: '-0.03em' }}>
+          Bienvenido a MentHabit
+        </h1>
+        <p style={{ fontSize: '15px', color: '#6B7280', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '280px' }}>
+          Tu compañero para construir hábitos financieros saludables. Empieza registrando tu primer movimiento.
+        </p>
+
+        {/* Feature chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '32px' }}>
+          {['⚡ Registro rápido', '🗺️ Mapa de hábitos', '📊 Estadísticas'].map(f => (
+            <span key={f} style={{
+              fontSize: '12px', fontWeight: 600, padding: '5px 12px', borderRadius: '9999px',
+              background: 'rgba(16,185,129,0.08)', color: '#059669',
+              border: '1px solid rgba(16,185,129,0.16)',
+            }}>{f}</span>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <Link href="/registro" style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          height: '52px', padding: '0 28px', borderRadius: '16px',
+          background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+          color: '#fff', textDecoration: 'none',
+          fontWeight: 700, fontSize: '15px',
+          boxShadow: '0 8px 24px rgba(16,185,129,0.32)',
+        }}>
+          <Plus size={18} aria-hidden="true" />
+          Registrar ahora
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -263,6 +325,93 @@ export default function HomePage() {
         <MetricCard label="Movimientos"  value={String(transactions.length)} color="neutral" icon={<BarChart2 size={15} />} />
         <MetricCard label="Mayor gasto"  value={topOverallLabel} color="purple" icon={<Tag size={15} />} className="col-span-2" />
       </div>
+
+      {/* ══ HÁBITOS ESTE MES ═════════════════════════════════════════════════ */}
+      {topHabits.length > 0 && (
+        <section style={{ marginBottom: '32px' }} aria-label="Hábitos este mes">
+
+          {/* Section header */}
+          <div className="flex items-center justify-between" style={{ marginBottom: '12px' }}>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: '#134e4a', margin: 0 }}>
+              Tus hábitos este mes
+            </p>
+            <Link
+              href="/categories"
+              style={{ fontSize: '12px', fontWeight: 600, color: '#10B981', textDecoration: 'none' }}
+            >
+              Ver mapa completo →
+            </Link>
+          </div>
+
+          {/* Habit list card */}
+          <div style={{
+            background:   '#ffffff',
+            borderRadius: '16px',
+            border:       '1px solid rgba(0,0,0,0.06)',
+            boxShadow:    '0 2px 8px rgba(0,0,0,0.04)',
+            overflow:     'hidden',
+          }}>
+            {topHabits.map((s, i) => {
+              const pct    = maxHabitTotal > 0 ? (s.monthlyTotal / maxHabitTotal) * 100 : 0;
+              const isLast = i === topHabits.length - 1;
+              return (
+                <div
+                  key={s.meta.id}
+                  style={{
+                    padding:      '12px 16px',
+                    borderBottom: isLast ? 'none' : '1px solid rgba(0,0,0,0.05)',
+                  }}
+                >
+                  {/* Row: emoji pill + label + amount + count */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '10px',
+                      background: s.meta.bgColor,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }} aria-hidden="true">
+                      <span style={{ fontSize: '16px', lineHeight: 1 }}>{s.meta.emoji}</span>
+                    </div>
+
+                    <span style={{
+                      flex: 1, fontSize: '13px', fontWeight: 600,
+                      color: '#111827', letterSpacing: '-0.01em',
+                    }}>
+                      {s.meta.label}
+                    </span>
+
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <p style={{
+                        margin: 0, fontSize: '13px', fontWeight: 700,
+                        color: s.meta.accentColor,
+                        fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
+                      }}>
+                        {mxnFmt.format(s.monthlyTotal)}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '10px', color: '#9CA3AF', marginTop: '1px' }}>
+                        {s.count} {s.count === 1 ? 'mov.' : 'movs.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Proportional bar */}
+                  <div style={{
+                    height: '4px', borderRadius: '999px',
+                    background: 'rgba(0,0,0,0.06)',
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${pct}%`,
+                      borderRadius: '999px',
+                      background: s.meta.accentColor,
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ══ RESUMEN DEL PERIODO ════════════════════════════════════════════════ */}
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: '16px' }}>

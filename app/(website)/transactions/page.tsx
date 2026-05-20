@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useStore } from '../../store/useStore';
 import { Transaction } from '../../types';
 
@@ -28,12 +29,21 @@ import {
 
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { Plus, SlidersHorizontal, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Plus, SlidersHorizontal, Eye, Pencil, Trash2, Search, X, CalendarDays } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import TransactionModal from '../../components/TransactionModal';
 import TransactionDetailsModal from '../../components/TransactionDetailsModal';
 import { Button as AppButton } from '../../components/ui/Button';
 import { getClassificationLabel, getRegularityLabel } from '../../utils/classifySuggestion';
+import { inferHabitGroup, HABIT_GROUPS } from '../../utils/habitGroups';
+
+/* ─── Habit filter chips ────────────────────────────────────────────── */
+const HABIT_CHIPS = [
+  { id: 'all', label: 'Todos', emoji: '✨' },
+  ...HABIT_GROUPS.map(g => ({ id: g.id, label: g.label, emoji: g.emoji })),
+];
+
+const ES_MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 /* ─── Desktop-only MUI button styles (unchanged) ───────────────────── */
 const iosButtonStyle = {
@@ -346,11 +356,44 @@ function TxCard({
   );
 }
 
+/* ─── Active filter chip ────────────────────────────────────────────── */
+function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '2px',
+      padding: '3px 6px 3px 10px',
+      borderRadius: '999px',
+      background: '#EEF2FF',
+      border: '1px solid rgba(99,102,241,0.20)',
+      color: '#4F46E5',
+      fontSize: '11px', fontWeight: 600,
+      whiteSpace: 'nowrap',
+    }}>
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Quitar filtro ${label}`}
+        style={{
+          background: 'none', border: 'none', padding: '0 2px',
+          color: '#6366F1', cursor: 'pointer', lineHeight: 1,
+          display: 'flex', alignItems: 'center',
+        }}
+      >
+        <X size={11} />
+      </button>
+    </span>
+  );
+}
+
 /* ─── Page ──────────────────────────────────────────────────────────── */
 export default function TransactionsPage() {
-  const { transactions, settings, deleteTransaction } = useStore();
+  const { transactions, settings, deleteTransaction, addTransaction } = useStore();
+  const [filterSearch, setFilterSearch]             = useState('');
+  const [filterType, setFilterType]                 = useState<'all' | 'income' | 'expense'>('all');
+  const [filterHabit, setFilterHabit]               = useState('all');
   const [transactionToEdit, setTransactionToEdit]   = useState<Transaction | null>(null);
-  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [undoTx, setUndoTx]                         = useState<Transaction | null>(null);
   const [transactionToView, setTransactionToView]   = useState<Transaction | null>(null);
   const [filterStartDate, setFilterStartDate]       = useState<string>('');
   const [filterEndDate, setFilterEndDate]           = useState<string>('');
@@ -358,7 +401,6 @@ export default function TransactionsPage() {
   const [filterYear, setFilterYear]                 = useState<string>('');
   const [isModalOpen, setIsModalOpen]               = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen]   = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen]   = useState(false);
   const [isViewModalOpen, setIsViewModalOpen]       = useState(false);
   const [page, setPage]                             = useState(0);
   const [rowsPerPage, setRowsPerPage]               = useState(20);
@@ -371,13 +413,17 @@ export default function TransactionsPage() {
     setIsModalOpen(false);
     setTransactionToEdit(null);
   };
-  const handleOpenDeleteModal = (transaction: Transaction) => {
-    setTransactionToDelete(transaction);
-    setIsDeleteModalOpen(true);
+  const handleDeleteWithUndo = (tx: Transaction) => {
+    deleteTransaction(tx.id);
+    setUndoTx(tx);
+    showSnackbar('Movimiento eliminado', 'success');
   };
-  const handleCloseDeleteModal = () => {
-    setTransactionToDelete(null);
-    setIsDeleteModalOpen(false);
+  const handleUndo = () => {
+    if (undoTx) {
+      addTransaction(undoTx);
+      setUndoTx(null);
+      showSnackbar('Movimiento restaurado', 'info');
+    }
   };
   const handleOpenViewModal = (transaction: Transaction) => {
     setTransactionToView(transaction);
@@ -389,6 +435,25 @@ export default function TransactionsPage() {
   };
   const handleOpenFilterModal  = () => setIsFilterModalOpen(true);
   const handleCloseFilterModal = () => setIsFilterModalOpen(false);
+
+  const clearAllFilters = () => {
+    setFilterSearch('');
+    setFilterType('all');
+    setFilterHabit('all');
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setFilterMonth('');
+    setFilterYear('');
+    setPage(0);
+  };
+
+  const hasActiveFilters =
+    filterSearch !== '' ||
+    filterType !== 'all' ||
+    filterHabit !== 'all' ||
+    filterStartDate !== '' ||
+    filterMonth !== '' ||
+    filterYear !== '';
 
   const getCurrencySymbol = (currencyString: string) => {
     const parts = currencyString.split(' ');
@@ -409,14 +474,9 @@ export default function TransactionsPage() {
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
   };
-  const handleSnackbarClose = () => setSnackbarOpen(false);
-
-  const handleDeleteTransaction = () => {
-    if (transactionToDelete) {
-      deleteTransaction(transactionToDelete.id);
-      handleCloseDeleteModal();
-      showSnackbar(t.transaction_deleted_successfully, 'success');
-    }
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+    setUndoTx(null);
   };
 
   const sortedTransactions = transactions.sort(
@@ -424,6 +484,24 @@ export default function TransactionsPage() {
   );
 
   const filteredTransactions = sortedTransactions.filter(transaction => {
+    // Search
+    if (filterSearch) {
+      const q       = filterSearch.toLowerCase();
+      const concept = (transaction.concept ?? transaction.category?.name ?? '').toLowerCase();
+      const notes   = (transaction.notes ?? '').toLowerCase();
+      if (!concept.includes(q) && !notes.includes(q)) return false;
+    }
+    // Type
+    if (filterType !== 'all' && transaction.type !== filterType) return false;
+    // Habit
+    if (filterHabit !== 'all') {
+      const gid = inferHabitGroup(
+        transaction.concept ?? transaction.category?.name ?? '',
+        transaction.habitCategory,
+      );
+      if (gid !== filterHabit) return false;
+    }
+    // Date range
     const transactionDate = new Date(transaction.date);
     if (filterStartDate && filterEndDate) {
       const start = new Date(filterStartDate);
@@ -480,34 +558,203 @@ export default function TransactionsPage() {
       <Box sx={{ pt: 1 }}>
 
         {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
             {t.transactions}
           </h1>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleOpenFilterModal}
-              sx={{
-                textTransform: 'none',
-                borderRadius:  '8px',
-                borderColor:   'rgba(0,0,0,0.12)',
-                color:         'rgba(0,0,0,0.6)',
-                '&:hover': { borderColor: 'rgba(0,0,0,0.25)', background: 'rgba(0,0,0,0.04)' },
-              }}
-            >
-              <SlidersHorizontal size={14} style={{ marginRight: 6 }} />
-              {t.filter_transactions}
-            </Button>
-            <AppButton variant="primary" size="sm" onClick={() => handleOpenModal()}>
-              <Plus size={14} aria-hidden="true" />
-              {t.add_new_transaction}
-            </AppButton>
-          </div>
+          <AppButton variant="primary" size="sm" onClick={() => handleOpenModal()}>
+            <Plus size={14} aria-hidden="true" />
+            {t.add_new_transaction}
+          </AppButton>
         </div>
 
-        {/* ── Filter modal (unchanged) ─────────────────────────────── */}
+        {/* ── Inline filter bar ────────────────────────────────────── */}
+        <div style={{ marginBottom: '16px' }}>
+
+          {/* Row 1: search */}
+          <div style={{ position: 'relative', marginBottom: '10px' }}>
+            <Search
+              size={15}
+              style={{
+                position: 'absolute', left: '12px', top: '50%',
+                transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none',
+              }}
+            />
+            <input
+              type="text"
+              value={filterSearch}
+              onChange={e => { setFilterSearch(e.target.value); setPage(0); }}
+              placeholder="Buscar por concepto o nota…"
+              style={{
+                width: '100%', height: '40px',
+                paddingLeft: '36px', paddingRight: filterSearch ? '36px' : '12px',
+                borderRadius: '12px',
+                border: '1.5px solid #E5E7EB',
+                fontSize: '14px', color: '#111827',
+                background: '#ffffff', outline: 'none',
+                boxSizing: 'border-box', fontFamily: 'inherit',
+              }}
+              onFocus={e  => (e.currentTarget.style.borderColor = '#6366F1')}
+              onBlur={e   => (e.currentTarget.style.borderColor = '#E5E7EB')}
+            />
+            {filterSearch && (
+              <button
+                type="button"
+                onClick={() => { setFilterSearch(''); setPage(0); }}
+                aria-label="Limpiar búsqueda"
+                style={{
+                  position: 'absolute', right: '10px', top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', padding: '4px',
+                  cursor: 'pointer', color: '#9CA3AF', display: 'flex', alignItems: 'center',
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Row 2: type chips + Fecha modal button */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', alignItems: 'center' }}>
+            {(['all', 'expense', 'income'] as const).map(opt => {
+              const active = filterType === opt;
+              const label  = opt === 'all' ? 'Todos' : opt === 'expense' ? 'Gastos' : 'Ingresos';
+              const activeBg =
+                opt === 'expense' ? '#FFF1F2' :
+                opt === 'income'  ? '#F0FDF4' :
+                '#111827';
+              const activeColor =
+                opt === 'expense' ? '#BE123C' :
+                opt === 'income'  ? '#15803D' :
+                '#ffffff';
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => { setFilterType(opt); setPage(0); }}
+                  style={{
+                    padding: '5px 12px', borderRadius: '999px',
+                    border: active ? 'none' : '1.5px solid #E5E7EB',
+                    background: active ? activeBg : '#ffffff',
+                    color: active ? activeColor : '#6B7280',
+                    fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 120ms ease',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              onClick={handleOpenFilterModal}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '5px 11px', borderRadius: '999px',
+                border: (filterStartDate || filterMonth || filterYear)
+                  ? '1.5px solid #6366F1'
+                  : '1.5px solid #E5E7EB',
+                background: (filterStartDate || filterMonth || filterYear) ? '#EEF2FF' : '#ffffff',
+                color: (filterStartDate || filterMonth || filterYear) ? '#4F46E5' : '#6B7280',
+                fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                transition: 'all 120ms ease',
+              }}
+            >
+              <CalendarDays size={13} />
+              Fecha
+              {(filterStartDate || filterMonth || filterYear) && (
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: '#6366F1', flexShrink: 0,
+                }} />
+              )}
+            </button>
+          </div>
+
+          {/* Row 3: habit chips (horizontally scrollable) */}
+          <div style={{
+            display: 'flex', gap: '6px', overflowX: 'auto',
+            paddingBottom: '4px', marginBottom: '8px',
+            scrollbarWidth: 'none',
+          }}>
+            {HABIT_CHIPS.map(chip => {
+              const active = filterHabit === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => { setFilterHabit(chip.id); setPage(0); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '5px 10px', borderRadius: '999px',
+                    border: active ? 'none' : '1.5px solid #E5E7EB',
+                    background: active ? '#111827' : '#ffffff',
+                    color: active ? '#ffffff' : '#6B7280',
+                    fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                    whiteSpace: 'nowrap', flexShrink: 0,
+                    transition: 'all 120ms ease',
+                  }}
+                >
+                  <span aria-hidden="true">{chip.emoji}</span>
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Row 4: active filter chips (conditional) */}
+          {hasActiveFilters && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+              {filterSearch && (
+                <ActiveChip label={`"${filterSearch}"`} onRemove={() => { setFilterSearch(''); setPage(0); }} />
+              )}
+              {filterType !== 'all' && (
+                <ActiveChip
+                  label={filterType === 'expense' ? 'Gastos' : 'Ingresos'}
+                  onRemove={() => { setFilterType('all'); setPage(0); }}
+                />
+              )}
+              {filterHabit !== 'all' && (
+                <ActiveChip
+                  label={HABIT_GROUPS.find(g => g.id === filterHabit)?.label ?? filterHabit}
+                  onRemove={() => { setFilterHabit('all'); setPage(0); }}
+                />
+              )}
+              {filterStartDate && filterEndDate && (
+                <ActiveChip
+                  label={`${filterStartDate} — ${filterEndDate}`}
+                  onRemove={() => { setFilterStartDate(''); setFilterEndDate(''); setPage(0); }}
+                />
+              )}
+              {filterMonth && (
+                <ActiveChip
+                  label={ES_MONTHS[parseInt(filterMonth, 10) - 1] ?? filterMonth}
+                  onRemove={() => { setFilterMonth(''); setPage(0); }}
+                />
+              )}
+              {filterYear && (
+                <ActiveChip
+                  label={filterYear}
+                  onRemove={() => { setFilterYear(''); setPage(0); }}
+                />
+              )}
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                style={{
+                  padding: '3px 10px', borderRadius: '999px',
+                  border: 'none', background: '#FFF1F2',
+                  color: '#BE123C', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Limpiar todos
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Filter modal (date / month / year) ───────────────────── */}
         <Modal
           open={isFilterModalOpen}
           onClose={handleCloseFilterModal}
@@ -557,10 +804,7 @@ export default function TransactionsPage() {
               <Button variant="contained" onClick={handleCloseFilterModal} sx={iosButtonStyleSecondary}>
                 {t.apply_filters}
               </Button>
-              <Button variant="outlined" onClick={() => {
-                setFilterStartDate(''); setFilterEndDate('');
-                setFilterMonth('');    setFilterYear('');
-              }} sx={iosButtonStyleError}>
+              <Button variant="outlined" onClick={clearAllFilters} sx={iosButtonStyleError}>
                 {t.clear_filters}
               </Button>
             </Box>
@@ -571,22 +815,61 @@ export default function TransactionsPage() {
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
-            {/* Empty state */}
-            {filteredTransactions.length === 0 && (
+            {/* Empty state — first time */}
+            {transactions.length === 0 && (
               <div style={{
-                textAlign:  'center',
-                padding:    '48px 24px',
-                background: '#ffffff',
-                borderRadius:'16px',
-                border:     '1px solid rgba(0,0,0,0.06)',
+                textAlign: 'center', padding: '56px 24px',
+                background: '#ffffff', borderRadius: '16px',
+                border: '1px solid rgba(0,0,0,0.06)',
               }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>💸</div>
-                <p style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: '0 0 6px' }}>
-                  Sin movimientos
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌱</div>
+                <p style={{ fontSize: '17px', fontWeight: 700, color: '#111827', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                  Todavía no tienes movimientos
                 </p>
-                <p style={{ fontSize: '14px', color: '#9CA3AF', margin: 0 }}>
-                  Registra tu primer gasto para verlo aquí.
+                <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 24px', lineHeight: 1.6 }}>
+                  Registra tu primer gasto o ingreso para empezar a construir tus hábitos financieros.
                 </p>
+                <Link
+                  href="/registro"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '10px 20px', borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #10B981, #14B8A6)',
+                    color: '#ffffff', fontSize: '14px', fontWeight: 700,
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 16px rgba(16,185,129,0.30)',
+                  }}
+                >
+                  Registrar ahora
+                </Link>
+              </div>
+            )}
+
+            {/* Empty state — no filter results */}
+            {filteredTransactions.length === 0 && transactions.length > 0 && (
+              <div style={{
+                textAlign: 'center', padding: '40px 24px',
+                background: '#ffffff', borderRadius: '16px',
+                border: '1px solid rgba(0,0,0,0.06)',
+              }}>
+                <div style={{ fontSize: '36px', marginBottom: '12px' }}>🔍</div>
+                <p style={{ fontSize: '15px', fontWeight: 600, color: '#111827', margin: '0 0 6px' }}>
+                  Sin resultados
+                </p>
+                <p style={{ fontSize: '13px', color: '#9CA3AF', margin: '0 0 16px' }}>
+                  Ningún movimiento coincide con los filtros activos.
+                </p>
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  style={{
+                    padding: '8px 18px', borderRadius: '10px',
+                    border: '1.5px solid #E5E7EB', background: '#F9FAFB',
+                    color: '#374151', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Limpiar filtros
+                </button>
               </div>
             )}
 
@@ -635,7 +918,7 @@ export default function TransactionsPage() {
                       currencySymbol={currencySymbol}
                       onView={()   => handleOpenViewModal(tx)}
                       onEdit={()   => handleOpenModal(tx)}
-                      onDelete={()  => handleOpenDeleteModal(tx)}
+                      onDelete={()  => handleDeleteWithUndo(tx)}
                     />
                   ))}
                 </div>
@@ -711,6 +994,42 @@ export default function TransactionsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
+                  {paginatedTransactions.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                        {transactions.length === 0 ? (
+                          <div>
+                            <div style={{ fontSize: '40px', marginBottom: '12px' }}>🌱</div>
+                            <p style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: '0 0 6px' }}>
+                              Todavía no tienes movimientos
+                            </p>
+                            <p style={{ fontSize: '14px', color: '#9CA3AF', margin: '0 0 16px' }}>
+                              Registra tu primer gasto o ingreso en la sección Registro.
+                            </p>
+                            <Link href="/registro" style={{
+                              display: 'inline-flex', padding: '8px 20px',
+                              borderRadius: '10px',
+                              background: 'linear-gradient(135deg, #10B981, #14B8A6)',
+                              color: '#ffffff', fontSize: '14px', fontWeight: 600,
+                              textDecoration: 'none',
+                            }}>
+                              Ir a Registro
+                            </Link>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔍</div>
+                            <p style={{ fontSize: '15px', fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>
+                              Sin resultados
+                            </p>
+                            <p style={{ fontSize: '13px', color: '#9CA3AF', margin: 0 }}>
+                              Ningún movimiento coincide con los filtros activos.
+                            </p>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {paginatedTransactions.map((transaction) => (
                     <TableRow
                       key={transaction.id}
@@ -759,7 +1078,7 @@ export default function TransactionsPage() {
                         <Button
                           size="small"
                           variant="contained"
-                          onClick={() => handleOpenDeleteModal(transaction)}
+                          onClick={() => handleDeleteWithUndo(transaction)}
                           sx={iosButtonStyleError}
                         >
                           {t.delete}
@@ -792,42 +1111,6 @@ export default function TransactionsPage() {
           />
         )}
 
-        {/* ── Delete confirmation modal ────────────────────────────── */}
-        <Modal
-          open={isDeleteModalOpen}
-          onClose={handleCloseDeleteModal}
-          aria-labelledby="delete-transaction-modal-title"
-          BackdropProps={{
-            sx: { backgroundColor: 'rgba(0, 0, 0, 0.2)', backdropFilter: 'blur(4px)' }
-          }}
-        >
-          <Box sx={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: isMobile ? '90%' : 400,
-            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-            boxShadow: '0 16px 48px rgba(0, 0, 0, 0.4)',
-            borderRadius: 2, p: 4,
-          }}>
-            <Typography id="delete-transaction-modal-title" variant="h6" component="h2" gutterBottom>
-              {t.delete_transaction}
-            </Typography>
-            <Typography sx={{ mb: 2 }}>
-              {t.are_you_sure_you_want_to_delete_this_transaction}
-            </Typography>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-              <Button variant="outlined" onClick={handleCloseDeleteModal} sx={iosButtonStyle}>
-                {t.cancel}
-              </Button>
-              <Button variant="contained" onClick={handleDeleteTransaction} sx={iosButtonStyleError}>
-                {t.delete}
-              </Button>
-            </Box>
-          </Box>
-        </Modal>
-
         {/* ── Transaction details modal ────────────────────────────── */}
         <TransactionDetailsModal
           open={isViewModalOpen}
@@ -837,8 +1120,27 @@ export default function TransactionsPage() {
 
       </Box>
 
-      <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={undoTx ? 5000 : 4000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbarSeverity}
+          sx={{ width: '100%' }}
+          action={undoTx ? (
+            <Button
+              color="inherit"
+              size="small"
+              onClick={handleUndo}
+              sx={{ fontWeight: 700, fontSize: '13px', textTransform: 'none' }}
+            >
+              Deshacer
+            </Button>
+          ) : undefined}
+        >
           {snackbarMessage}
         </Alert>
       </Snackbar>

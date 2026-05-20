@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '../../store/useStore';
 import type { ExpenseClassification } from '../../types';
@@ -54,7 +55,7 @@ export default function RegistroPage() {
   const [note, setNote]                 = useState('');
   const [date, setDate]                 = useState(todayStr);
   const [time, setTime]                 = useState(nowTimeStr);
-  const [toast, setToast]               = useState(false);
+  const [showActions, setShowActions]   = useState(false);
 
   const amount  = parseFloat(amountStr) || 0;
   const canSave = amount > 0 && selectedCat !== null;
@@ -96,9 +97,9 @@ export default function RegistroPage() {
     setNote('');
     setDate(todayStr());
     setTime(nowTimeStr());
-    // toast
-    setToast(true);
-    setTimeout(() => setToast(false), 2200);
+    // show action panel
+    setShowActions(true);
+    setTimeout(() => setShowActions(false), 6000);
   };
 
   /* ── Numpad keys ─────────────────────────────────────────────────── */
@@ -388,29 +389,95 @@ export default function RegistroPage() {
         {canSave ? '✓ Registrar gasto' : 'Selecciona monto y categoría'}
       </button>
 
-      {/* ── Toast ─────────────────────────────────────────────────── */}
-      {toast && (
+      {/* ── Post-save action panel ───────────────────────────────── */}
+      {showActions && (
         <div
-          className="et-toast"
           style={{
-            position:      'fixed',
-            bottom:        '100px',
-            left:          '50%',
-            transform:     'translateX(-50%)',
-            background:    'linear-gradient(135deg, #10B981 0%, #14B8A6 100%)',
-            color:         '#ffffff',
-            padding:       '12px 24px',
-            borderRadius:  '999px',
-            fontSize:      '14px',
-            fontWeight:    600,
-            whiteSpace:    'nowrap',
-            zIndex:        2000,
-            boxShadow:     '0 8px 24px rgba(16,185,129,0.35)',
+            position:     'fixed',
+            bottom:       '84px',
+            left:         '50%',
+            transform:    'translateX(-50%)',
+            width:        'min(calc(100% - 32px), 400px)',
+            background:   '#ffffff',
+            borderRadius: '20px',
+            boxShadow:    '0 16px 48px rgba(0,0,0,0.16), 0 4px 12px rgba(0,0,0,0.08)',
+            border:       '1px solid rgba(0,0,0,0.08)',
+            padding:      '20px',
+            zIndex:       2000,
           }}
           role="alert"
           aria-live="assertive"
         >
-          ✓ Gasto registrado
+          {/* Success indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <div style={{
+              width: '36px', height: '36px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #10B981, #14B8A6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 4px 12px rgba(16,185,129,0.30)',
+            }}>
+              <span style={{ color: '#fff', fontSize: '18px', lineHeight: 1 }}>✓</span>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '15px', color: '#111827', lineHeight: 1.2 }}>
+                ¡Registrado!
+              </p>
+              <p style={{ margin: 0, fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
+                Gasto guardado correctamente
+              </p>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setShowActions(false)}
+              style={{
+                flex: 1, height: '40px',
+                borderRadius: '10px',
+                border: '1.5px solid #E5E7EB',
+                background: '#F9FAFB',
+                color: '#374151',
+                fontSize: '13px', fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + Otro
+            </button>
+            <Link
+              href="/transactions"
+              style={{
+                flex: 1, height: '40px',
+                borderRadius: '10px',
+                border: '1.5px solid rgba(99,102,241,0.25)',
+                background: '#EEF2FF',
+                color: '#4F46E5',
+                fontSize: '13px', fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                textDecoration: 'none',
+              }}
+            >
+              Movimientos
+            </Link>
+            <Link
+              href="/categories"
+              style={{
+                flex: 1, height: '40px',
+                borderRadius: '10px',
+                border: '1.5px solid rgba(16,185,129,0.25)',
+                background: '#ECFDF5',
+                color: '#059669',
+                fontSize: '13px', fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                textDecoration: 'none',
+              }}
+            >
+              Hábitos
+            </Link>
+          </div>
         </div>
       )}
     </div>

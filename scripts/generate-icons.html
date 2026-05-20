@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MentHabit — Icon Generator</title>
+  <style>
+    body      { font-family: system-ui, -apple-system, sans-serif; padding: 32px; background: #F9FAFB; color: #111827; }
+    h1        { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
+    p         { color: #6B7280; line-height: 1.65; margin: 0 0 24px; }
+    code      { background: #F3F4F6; padding: 2px 7px; border-radius: 5px; font-family: monospace; font-size: 13px; }
+    .row      { display: flex; gap: 32px; flex-wrap: wrap; margin-bottom: 32px; }
+    .card     { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    canvas    { border-radius: 22%; box-shadow: 0 8px 32px rgba(16,185,129,0.25); }
+    button    { padding: 10px 20px; background: #10B981; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+    button:hover { background: #059669; }
+    .step     { background: #fff; border: 1px solid rgba(0,0,0,0.07); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; font-size: 14px; }
+    .step b   { color: #10B981; }
+  </style>
+</head>
+<body>
+
+  <h1>MentHabit — Icon Generator</h1>
+  <p>
+    Genera los iconos PWA con la identidad MentHabit.<br>
+    Descarga ambos PNGs y cópialos a <code>public/icons/</code> reemplazando los existentes.
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <canvas id="c192" width="192" height="192"></canvas>
+      <button onclick="dl('c192','icon-192x192.png')">↓ icon-192x192.png</button>
+    </div>
+    <div class="card">
+      <canvas id="c512" width="512" height="512"></canvas>
+      <button onclick="dl('c512','icon-512x512.png')">↓ icon-512x512.png</button>
+    </div>
+  </div>
+
+  <div class="step"><b>Paso 1:</b> Haz clic en ambos botones para descargar los PNGs.</div>
+  <div class="step"><b>Paso 2:</b> Copia los archivos descargados a <code>public/icons/</code> reemplazando los existentes.</div>
+  <div class="step"><b>Paso 3:</b> Ejecuta <code>npm run build && npm run start</code> para probar la PWA en producción.</div>
+
+  <script>
+    function drawIcon(canvas) {
+      const s   = canvas.width;
+      const ctx = canvas.getContext('2d');
+
+      /* ── Full-bleed gradient background (maskable-safe) ── */
+      const grad = ctx.createLinearGradient(0, 0, s, s);
+      grad.addColorStop(0,    '#10B981');
+      grad.addColorStop(0.5,  '#14B8A6');
+      grad.addColorStop(1,    '#06B6D4');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, s, s);
+
+      /* ── M-balanza symbol — white, centered at 52% of icon size ──
+         SVG viewBox: 22×22 (same as the Sidebar logo)
+         52% keeps the symbol inside the maskable safe zone (center 80%)  */
+      const sym = s * 0.52;
+      const sc  = sym / 22;
+      const ox  = (s - sym) / 2;
+      const oy  = (s - sym) / 2 - s * 0.01; // nudge 1% up for visual balance
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.fillStyle   = 'rgba(255,255,255,0.95)';
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+
+      /* M letterform: M3 17V5L11 12L19 5V17 */
+      ctx.beginPath();
+      ctx.lineWidth = 2.2 * sc;
+      ctx.moveTo(ox +  3 * sc, oy + 17 * sc);
+      ctx.lineTo(ox +  3 * sc, oy +  5 * sc);
+      ctx.lineTo(ox + 11 * sc, oy + 12 * sc);
+      ctx.lineTo(ox + 19 * sc, oy +  5 * sc);
+      ctx.lineTo(ox + 19 * sc, oy + 17 * sc);
+      ctx.stroke();
+
+      /* Stem: x1=11 y1=17 x2=11 y2=20 */
+      ctx.beginPath();
+      ctx.lineWidth = 1.7 * sc;
+      ctx.moveTo(ox + 11 * sc, oy + 17 * sc);
+      ctx.lineTo(ox + 11 * sc, oy + 20 * sc);
+      ctx.stroke();
+
+      /* Base beam: x1=7 y1=20 x2=15 y2=20 */
+      ctx.beginPath();
+      ctx.moveTo(ox +  7 * sc, oy + 20 * sc);
+      ctx.lineTo(ox + 15 * sc, oy + 20 * sc);
+      ctx.stroke();
+
+      /* Left pan circle: cx=7 cy=20 r=1.2 */
+      ctx.beginPath();
+      ctx.arc(ox +  7 * sc, oy + 20 * sc, 1.2 * sc, 0, Math.PI * 2);
+      ctx.fill();
+
+      /* Right pan circle: cx=15 cy=20 r=1.2 */
+      ctx.beginPath();
+      ctx.arc(ox + 15 * sc, oy + 20 * sc, 1.2 * sc, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function dl(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    }
+
+    /* Draw on page load */
+    ['c192', 'c512'].forEach(id => drawIcon(document.getElementById(id)));
+  </script>
+</body>
+</html>
