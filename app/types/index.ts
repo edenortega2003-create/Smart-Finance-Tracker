@@ -40,7 +40,8 @@ export interface Transaction {
   classification: ExpenseClassification | IncomeClassification;
   regularity: Regularity;
   notes?: string;
-  category?: Category; // legacy: kept for compat with data already in localStorage
+  category?: Category;    // legacy: kept for compat with data already in localStorage
+  habitCategory?: string; // one of HabitGroupId — inferred if absent
 }
 
 export enum Currency {

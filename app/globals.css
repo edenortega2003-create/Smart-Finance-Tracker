@@ -194,6 +194,21 @@ body {
 /* Chart container */
 .et-chart-card { background-color: #ffffff; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
 
+/* ─── Habit Map Grid ─────────────────────────────────────────────────────── */
+
+.habit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .habit-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
 /* ─── Toast animation ────────────────────────────────────────────────────── */
 
 @keyframes et-toast-in {
