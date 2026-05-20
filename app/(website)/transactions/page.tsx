@@ -100,12 +100,13 @@ const iosButtonStyleSecondary = {
 };
 
 /* ─── Mobile helpers ────────────────────────────────────────────────── */
-function formatDateLabel(dateStr: string): string {
+function getTemporalBucket(dateStr: string): string {
   const today     = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
+  const weekAgo   = new Date(today);
+  weekAgo.setDate(today.getDate() - 7);
 
-  // Use noon to avoid timezone boundary issues with YYYY-MM-DD strings
   const tx = new Date(dateStr + 'T12:00:00');
 
   const sameDay = (a: Date, b: Date) =>
@@ -115,17 +116,18 @@ function formatDateLabel(dateStr: string): string {
 
   if (sameDay(tx, today))     return 'Hoy';
   if (sameDay(tx, yesterday)) return 'Ayer';
-
-  return tx.toLocaleDateString('es-MX', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  });
+  if (tx >= weekAgo)          return 'Esta semana';
+  if (tx.getFullYear() === today.getFullYear() && tx.getMonth() === today.getMonth()) {
+    return 'Este mes';
+  }
+  return 'Antiguos';
 }
 
 function groupByDate(txs: Transaction[]): { label: string; items: Transaction[] }[] {
   const groups: { label: string; items: Transaction[] }[] = [];
   let current = '';
   for (const tx of txs) {
-    const label = formatDateLabel(tx.date);
+    const label = getTemporalBucket(tx.date);
     if (label !== current) {
       groups.push({ label, items: [] });
       current = label;
@@ -171,6 +173,10 @@ function TxCard({
   const clsStyle    = clsBadgeStyle(tx.classification ?? '');
   const clsLabel    = getClassificationLabel(tx.classification, tx.type);
   const regLabel    = getRegularityLabel(tx.regularity);
+  const habitId     = !isIncome
+    ? inferHabitGroup(tx.concept ?? tx.category?.name ?? '', tx.habitCategory)
+    : 'otro';
+  const habitMeta   = habitId !== 'otro' ? (HABIT_GROUPS.find(g => g.id === habitId) ?? null) : null;
 
   return (
     <div style={{
@@ -216,8 +222,27 @@ function TxCard({
         </span>
       </div>
 
-      {/* Row 2: badges + date */}
+      {/* Row 2: habit badge + cls badge + reg badge + date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingLeft: '18px' }}>
+        {/* habit badge */}
+        {habitMeta && (
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: '999px',
+            background: habitMeta.bgColor,
+            color: habitMeta.accentColor,
+            border: `1px solid ${habitMeta.borderColor}`,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '3px',
+          }}>
+            <span aria-hidden="true">{habitMeta.emoji}</span>
+            {habitMeta.label}
+          </span>
+        )}
+
         {/* classification badge */}
         <span style={{
           fontSize: '11px',
@@ -530,6 +555,23 @@ export default function TransactionsPage() {
     page * rowsPerPage + rowsPerPage
   );
 
+  /* ── Summary + smart empty state data ──────────────────────────────── */
+  const expenseTxs   = filteredTransactions.filter(t => t.type === 'expense');
+  const totalExpense = expenseTxs.reduce((s, t) => s + t.amount, 0);
+  const totalIncome  = filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+
+  const habitTotals: Record<string, number> = {};
+  for (const tx of expenseTxs) {
+    const gid = inferHabitGroup(tx.concept ?? tx.category?.name ?? '', tx.habitCategory);
+    if (gid !== 'otro') habitTotals[gid] = (habitTotals[gid] ?? 0) + tx.amount;
+  }
+  const topHabitId   = Object.entries(habitTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const dominantHabit = topHabitId ? (HABIT_GROUPS.find(g => g.id === topHabitId) ?? null) : null;
+
+  const emptyFilterHabitMeta = filterHabit !== 'all'
+    ? (HABIT_GROUPS.find(g => g.id === filterHabit) ?? null)
+    : null;
+
   const years  = Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))).sort();
   const months = [
     { value: '1',  label: 'January'   },
@@ -811,6 +853,52 @@ export default function TransactionsPage() {
           </Box>
         </Modal>
 
+        {/* ── Contextual summary bar ───────────────────────────────── */}
+        {filteredTransactions.length > 0 && (
+          <div style={{
+            display:      'flex',
+            alignItems:   'center',
+            gap:          '10px',
+            padding:      '10px 14px',
+            marginBottom: '12px',
+            background:   '#F8FAFC',
+            borderRadius: '12px',
+            border:       '1px solid rgba(0,0,0,0.06)',
+            flexWrap:     'wrap',
+          }}>
+            <span style={{ fontSize: '13px', color: '#374151', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {filteredTransactions.length} {filteredTransactions.length === 1 ? 'movimiento' : 'movimientos'}
+            </span>
+            {totalExpense > 0 && filterType !== 'income' && (
+              <>
+                <span style={{ color: '#D1D5DB', fontSize: '13px' }}>·</span>
+                <span style={{ fontSize: '13px', color: '#E11D48', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                  − {currencySymbol} {totalExpense.toFixed(2)}
+                </span>
+              </>
+            )}
+            {totalIncome > 0 && filterType !== 'expense' && (
+              <>
+                <span style={{ color: '#D1D5DB', fontSize: '13px' }}>·</span>
+                <span style={{ fontSize: '13px', color: '#059669', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                  + {currencySymbol} {totalIncome.toFixed(2)}
+                </span>
+              </>
+            )}
+            {dominantHabit && filterHabit === 'all' && (
+              <>
+                <span style={{ color: '#D1D5DB', fontSize: '13px' }}>·</span>
+                <span style={{ fontSize: '12px', color: '#6B7280' }}>
+                  <span aria-hidden="true">{dominantHabit.emoji}</span>
+                  {' '}
+                  <span style={{ color: dominantHabit.accentColor, fontWeight: 600 }}>{dominantHabit.label}</span>
+                  {' '}es tu hábito principal
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── Mobile card list ─────────────────────────────────────── */}
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -852,24 +940,48 @@ export default function TransactionsPage() {
                 background: '#ffffff', borderRadius: '16px',
                 border: '1px solid rgba(0,0,0,0.06)',
               }}>
-                <div style={{ fontSize: '36px', marginBottom: '12px' }}>🔍</div>
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>
+                  {emptyFilterHabitMeta ? emptyFilterHabitMeta.emoji : '🔍'}
+                </div>
                 <p style={{ fontSize: '15px', fontWeight: 600, color: '#111827', margin: '0 0 6px' }}>
-                  Sin resultados
+                  {emptyFilterHabitMeta
+                    ? `Sin movimientos de ${emptyFilterHabitMeta.label}`
+                    : 'Sin resultados'
+                  }
                 </p>
-                <p style={{ fontSize: '13px', color: '#9CA3AF', margin: '0 0 16px' }}>
-                  Ningún movimiento coincide con los filtros activos.
+                <p style={{ fontSize: '13px', color: '#9CA3AF', margin: '0 0 20px', lineHeight: 1.6 }}>
+                  {emptyFilterHabitMeta
+                    ? `No encontramos gastos de ${emptyFilterHabitMeta.label} con los filtros activos.`
+                    : 'Ningún movimiento coincide con los filtros activos.'
+                  }
                 </p>
-                <button
-                  type="button"
-                  onClick={clearAllFilters}
-                  style={{
-                    padding: '8px 18px', borderRadius: '10px',
-                    border: '1.5px solid #E5E7EB', background: '#F9FAFB',
-                    color: '#374151', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  Limpiar filtros
-                </button>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    style={{
+                      padding: '8px 18px', borderRadius: '10px',
+                      border: '1.5px solid #E5E7EB', background: '#F9FAFB',
+                      color: '#374151', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Limpiar filtros
+                  </button>
+                  {emptyFilterHabitMeta && (
+                    <Link
+                      href="/registro"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '8px 18px', borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #10B981, #14B8A6)',
+                        color: '#ffffff', fontSize: '13px', fontWeight: 700,
+                        textDecoration: 'none',
+                      }}
+                    >
+                      Registrar movimiento
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1018,13 +1130,35 @@ export default function TransactionsPage() {
                           </div>
                         ) : (
                           <div>
-                            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🔍</div>
+                            <div style={{ fontSize: '36px', marginBottom: '10px' }}>
+                              {emptyFilterHabitMeta ? emptyFilterHabitMeta.emoji : '🔍'}
+                            </div>
                             <p style={{ fontSize: '15px', fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>
-                              Sin resultados
+                              {emptyFilterHabitMeta
+                                ? `Sin movimientos de ${emptyFilterHabitMeta.label}`
+                                : 'Sin resultados'
+                              }
                             </p>
-                            <p style={{ fontSize: '13px', color: '#9CA3AF', margin: 0 }}>
-                              Ningún movimiento coincide con los filtros activos.
+                            <p style={{ fontSize: '13px', color: '#9CA3AF', margin: '0 0 12px' }}>
+                              {emptyFilterHabitMeta
+                                ? `No encontramos gastos de ${emptyFilterHabitMeta.label} con los filtros activos.`
+                                : 'Ningún movimiento coincide con los filtros activos.'
+                              }
                             </p>
+                            {emptyFilterHabitMeta && (
+                              <Link
+                                href="/registro"
+                                style={{
+                                  display: 'inline-flex', padding: '8px 16px',
+                                  borderRadius: '10px',
+                                  background: 'linear-gradient(135deg, #10B981, #14B8A6)',
+                                  color: '#ffffff', fontSize: '13px', fontWeight: 600,
+                                  textDecoration: 'none',
+                                }}
+                              >
+                                Registrar movimiento
+                              </Link>
+                            )}
                           </div>
                         )}
                       </TableCell>

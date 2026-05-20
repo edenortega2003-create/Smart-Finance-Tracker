@@ -6,11 +6,31 @@ import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '../../store/useStore';
 import type { ExpenseClassification } from '../../types';
 
-/* ─── Auto-classify by amount ─────────────────────────────────────── */
+/* ─── Habit ID mapping (Registro ids → HabitGroupId) ──────────────── */
+function toHabitId(catId: string): string {
+  return catId === 'comida' ? 'alimentacion' : catId;
+}
+
+/* ─── Auto-classify by amount (fallback) ──────────────────────────── */
 function autoClassify(amount: number): ExpenseClassification {
   if (amount < 100) return 'hormiga';
   if (amount < 500) return 'variable';
   return 'fijo';
+}
+
+/* ─── Smart classify: habit-aware, falls back to amount-based ──────── */
+function smartClassify(habitId: string, amount: number): ExpenseClassification {
+  switch (habitId) {
+    case 'servicios':
+    case 'hogar':
+      return 'fijo';
+    case 'ocio':
+      return amount < 200 ? 'hormiga' : 'esporadico';
+    case 'educacion':
+      return 'inversion';
+    default:
+      return autoClassify(amount);
+  }
 }
 
 /* ─── Category data ────────────────────────────────────────────────── */
@@ -56,6 +76,7 @@ export default function RegistroPage() {
   const [date, setDate]                 = useState(todayStr);
   const [time, setTime]                 = useState(nowTimeStr);
   const [showActions, setShowActions]   = useState(false);
+  const [savedCat, setSavedCat]         = useState<(typeof CATEGORIES)[number] | null>(null);
 
   const amount  = parseFloat(amountStr) || 0;
   const canSave = amount > 0 && selectedCat !== null;
@@ -79,8 +100,9 @@ export default function RegistroPage() {
 
   const handleSave = () => {
     if (!canSave) return;
-    const cat = CATEGORIES.find(c => c.id === selectedCat)!;
-    const classification = autoClassify(amount);
+    const cat        = CATEGORIES.find(c => c.id === selectedCat)!;
+    const habitId    = toHabitId(cat.id);
+    const classification = smartClassify(habitId, amount);
     addTransaction({
       id:             uuidv4(),
       date,
@@ -90,8 +112,11 @@ export default function RegistroPage() {
       classification,
       regularity:     'eventual',
       notes:          note || undefined,
+      habitCategory:  habitId,
     });
-    // reset
+    // capture before reset so post-save panel can display it
+    setSavedCat(cat);
+    // reset form
     setAmountStr('');
     setSelectedCat(null);
     setNote('');
@@ -425,7 +450,9 @@ export default function RegistroPage() {
                 ¡Registrado!
               </p>
               <p style={{ margin: 0, fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
-                Gasto guardado correctamente
+                {savedCat
+                  ? `${savedCat.emoji} Añadido a ${savedCat.label}`
+                  : 'Gasto guardado correctamente'}
               </p>
             </div>
           </div>
