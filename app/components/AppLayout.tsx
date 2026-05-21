@@ -10,17 +10,9 @@ import {
   Box,
   Snackbar,
   Alert,
-  BottomNavigation,
-  BottomNavigationAction,
-  Paper,
   Typography,
 } from '@mui/material';
-import { Plus } from 'lucide-react';
-import HomeIcon from '@mui/icons-material/Home';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import SettingsIcon from '@mui/icons-material/Settings';
-import AddCircleIcon from '@mui/icons-material/AddCircle';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import { Plus, TrendingDown, TrendingUp, LayoutGrid, Home, ArrowLeftRight, Tag, Settings, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslation } from '../hooks/useTranslation';
@@ -34,246 +26,365 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { t } = useTranslation();
   const pathname = usePathname();
-  const [bottomNavValue, setBottomNavValue] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Get page title based on current route
   const getPageTitle = () => {
-    if (pathname === '/') {
-      return t.home || 'Dashboard';
-    } else if (pathname === '/registro') {
-      return 'Registro rápido';
-    } else if (pathname === '/ingresos') {
-      return 'Ingresos';
-    } else if (pathname === '/categories') {
-      return t.categories || 'Categories';
-    } else if (pathname === '/transactions') {
-      return t.transactions || 'Transactions';
-    } else if (pathname.startsWith('/settings')) {
-      return t.settings || 'Settings';
-    } else {
-      return t.expense_tracker || 'MentHabit';
-    }
+    if (pathname === '/')                    return t.home || 'Dashboard';
+    if (pathname === '/registro')            return 'Registro rápido';
+    if (pathname === '/ingresos')            return 'Ingresos';
+    if (pathname.startsWith('/categories'))  return t.categories || 'Hábitos';
+    if (pathname.startsWith('/transactions')) return t.transactions || 'Movimientos';
+    if (pathname.startsWith('/settings'))    return t.settings || 'Ajustes';
+    return t.expense_tracker || 'MentHabit';
   };
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [transaction, setTransaction] = useState<Omit<Transaction, 'id'> | null>(null);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [modalOpen, setModalOpen]         = useState(false);
+  const [transaction, setTransaction]     = useState<Omit<Transaction, 'id'> | null>(null);
+  const [snackbarOpen, setSnackbarOpen]   = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('success');
 
-  // Update bottom navigation value based on current route
-  // Order: Home(0) | Transactions(1) | Registro(2-center) | Categories(3) | Settings(4)
-  useEffect(() => {
-    if (pathname === '/') {
-      setBottomNavValue(0);
-    } else if (pathname.startsWith('/transactions')) {
-      setBottomNavValue(1);
-    } else if (pathname === '/registro') {
-      setBottomNavValue(2);
-    } else if (pathname === '/ingresos') {
-      setBottomNavValue(3);
-    } else if (pathname.startsWith('/settings')) {
-      setBottomNavValue(4);
-    } else {
-      setBottomNavValue(0);
-    }
-  }, [pathname]);
+  /* Close menu when route changes */
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' | 'warning') => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
   };
+  const handleSnackbarClose = () => setSnackbarOpen(false);
+  const handleModalOpen  = () => { setTransaction(null); setModalOpen(true);  };
+  const handleModalClose = () => setModalOpen(false);
 
-  const handleSnackbarClose = () => {
-    setSnackbarOpen(false);
-  };
-
-  const handleModalOpen = () => {
-    setTransaction(null);
-    setModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setModalOpen(false);
-  };
+  /* True when the current page lives in the secondary menu */
+  const isSecondaryPage =
+    pathname === '/' ||
+    pathname.startsWith('/transactions') ||
+    pathname.startsWith('/categories') ||
+    pathname.startsWith('/settings');
 
   return (
     <>
-      <Box
-        sx={{
-          display: 'flex',
-          minHeight: '100vh',
-          background: 'linear-gradient(145deg, #FFF9E6 0%, #FFFDF7 55%, #F0FDFA 100%)',
-        }}
-      >
-        {/* Desktop Sidebar */}
-        {!isMobile && <Sidebar />}
+      <Box sx={{
+        display: 'flex',
+        minHeight: '100vh',
+        background: 'linear-gradient(145deg, #FFF9E6 0%, #FFFDF7 55%, #F0FDFA 100%)',
+      }}>
+        {/* Desktop Sidebar — hidden on mobile via CSS (SSR-safe, no layout shift) */}
+        <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+          <Sidebar />
+        </Box>
 
         {/* Main Content Area */}
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: '100vh',
-            marginLeft: isMobile ? 0 : `${DRAWER_WIDTH}px`,
-          }}
-        >
-          {/* iOS-style AppBar for mobile */}
+        <Box component="main" sx={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
+          minWidth: 0,
+          overflow: 'hidden',
+          marginLeft: { xs: 0, sm: `${DRAWER_WIDTH}px` },
+        }}>
+          {/* iOS-style AppBar (mobile only) */}
           {isMobile && (
-            <AppBar
-              position="static"
-              sx={{
-                backgroundColor: 'rgba(255, 255, 255, 0.05) !important',
-                backdropFilter: 'blur(25px) saturate(200%)',
-                WebkitBackdropFilter: 'blur(25px) saturate(200%)',
-                borderBottom: '0.5px solid rgba(255, 255, 255, 0.15)',
-                boxShadow: 'none',
-                color: 'rgba(0, 0, 0, 0.9)',
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.18)',
-              }}
-            >
-              <Toolbar
-                sx={{
-                  minHeight: '44px !important',
-                  height: '44px',
-                  paddingTop: 'env(safe-area-inset-top, 0px)',
-                  paddingX: 2,
-                  justifyContent: 'center',
-                  position: 'relative',
-                }}
-              >
-                <Typography
-                  variant="h6"
-                  component="h1"
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '17px',
-                    lineHeight: '22px',
-                    color: 'rgba(0, 0, 0, 0.9)',
-                    textAlign: 'center',
-                    letterSpacing: '-0.41px',
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
-                    textShadow: '0 1px 3px rgba(255, 255, 255, 0.9), 0 0 10px rgba(255, 255, 255, 0.5)',
-                  }}
-                >
+            <AppBar position="static" sx={{
+              backgroundColor: 'rgba(255,255,255,0.05) !important',
+              backdropFilter: 'blur(25px) saturate(200%)',
+              WebkitBackdropFilter: 'blur(25px) saturate(200%)',
+              borderBottom: '0.5px solid rgba(255,255,255,0.15)',
+              boxShadow: 'none',
+              color: 'rgba(0,0,0,0.9)',
+              background: 'linear-gradient(135deg,rgba(255,255,255,0.08) 0%,rgba(255,255,255,0.02) 100%)',
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}>
+              <Toolbar sx={{
+                minHeight: '44px !important',
+                height: '44px',
+                paddingTop: 'env(safe-area-inset-top,0px)',
+                paddingX: 2,
+                justifyContent: 'center',
+                position: 'relative',
+              }}>
+                <Typography variant="h6" component="h1" sx={{
+                  fontWeight: 600,
+                  fontSize: '17px',
+                  lineHeight: '22px',
+                  color: 'rgba(0,0,0,0.9)',
+                  textAlign: 'center',
+                  letterSpacing: '-0.41px',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+                  textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 0 10px rgba(255,255,255,0.5)',
+                }}>
                   {getPageTitle()}
                 </Typography>
               </Toolbar>
             </AppBar>
           )}
 
-          {/* Content Container */}
-          <Container
-            sx={{
-              pb: isMobile ? '80px' : 2,
-              pt: 2,
-              flexGrow: 1,
-            }}
-          >
+          {/* Page content */}
+          <Container sx={{ pb: isMobile ? '80px' : 2, pt: 2, flexGrow: 1 }}>
             {children}
           </Container>
         </Box>
       </Box>
 
-      {/* Bottom Navigation for Mobile */}
+      {/* ── Mobile navigation (rendered outside the flex layout to avoid overflow) ── */}
       {isMobile && (
-        <Paper
-          sx={{
+        <>
+          {/* ── Bottom bar: 3 primary tabs ────────────────────────────────── */}
+          <div style={{
             position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
+            bottom: 0, left: 0, right: 0,
             zIndex: 1000,
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-          }}
-          elevation={0}
-        >
-          <BottomNavigation
-            value={bottomNavValue}
-            onChange={(event, newValue) => {
-              setBottomNavValue(newValue);
+            height: '66px',
+            display: 'flex',
+            alignItems: 'stretch',
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(28px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+            borderTop: '1px solid rgba(0,0,0,0.06)',
+            boxShadow: '0 -2px 16px rgba(0,0,0,0.04)',
+            paddingBottom: 'env(safe-area-inset-bottom,0px)',
+          }}>
+
+            {/* Gasto → /registro */}
+            <Link href="/registro" style={{
+              flex: 1,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: '3px',
+              textDecoration: 'none',
+              color: pathname === '/registro' ? '#E11D48' : '#A1A1AA',
+              borderTop: pathname === '/registro'
+                ? '2px solid #E11D48'
+                : '2px solid transparent',
+              transition: 'color 150ms ease, border-color 150ms ease',
+              paddingTop: '10px',
+            }}>
+              <TrendingDown size={21} strokeWidth={pathname === '/registro' ? 2 : 1.5} />
+              <span style={{
+                fontSize: '10px',
+                fontWeight: pathname === '/registro' ? 700 : 500,
+                letterSpacing: '0.02em',
+              }}>Gasto</span>
+            </Link>
+
+            {/* Ingreso → /ingresos */}
+            <Link href="/ingresos" style={{
+              flex: 1,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: '3px',
+              textDecoration: 'none',
+              color: pathname === '/ingresos' ? '#059669' : '#A1A1AA',
+              borderTop: pathname === '/ingresos'
+                ? '2px solid #059669'
+                : '2px solid transparent',
+              transition: 'color 150ms ease, border-color 150ms ease',
+              paddingTop: '10px',
+            }}>
+              <TrendingUp size={21} strokeWidth={pathname === '/ingresos' ? 2 : 1.5} />
+              <span style={{
+                fontSize: '10px',
+                fontWeight: pathname === '/ingresos' ? 700 : 500,
+                letterSpacing: '0.02em',
+              }}>Ingreso</span>
+            </Link>
+
+            {/* Menú → bottom sheet */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen(prev => !prev)}
+              style={{
+                flex: 1,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: '3px',
+                background: 'none', border: 'none',
+                borderTop: (menuOpen || isSecondaryPage)
+                  ? '2px solid #6366F1'
+                  : '2px solid transparent',
+                cursor: 'pointer',
+                color: (menuOpen || isSecondaryPage) ? '#6366F1' : '#A1A1AA',
+                transition: 'color 150ms ease, border-color 150ms ease',
+                paddingTop: '10px',
+              }}
+            >
+              <LayoutGrid size={21} strokeWidth={(menuOpen || isSecondaryPage) ? 2 : 1.5} />
+              <span style={{
+                fontSize: '10px',
+                fontWeight: (menuOpen || isSecondaryPage) ? 700 : 500,
+                letterSpacing: '0.02em',
+              }}>Menú</span>
+            </button>
+          </div>
+
+          {/* ── Backdrop ──────────────────────────────────────────────────── */}
+          <div
+            role="presentation"
+            onClick={() => setMenuOpen(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              zIndex: 1100,
+              background: 'rgba(0,0,0,0.32)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              opacity: menuOpen ? 1 : 0,
+              pointerEvents: menuOpen ? 'auto' : 'none',
+              transition: 'opacity 250ms ease',
             }}
-            showLabels
-            sx={{
-              '& .MuiBottomNavigationAction-root': { minWidth: 0, padding: '4px 2px' },
-              '& .MuiBottomNavigationAction-label': { fontSize: '10px !important', marginTop: '2px' },
-              '& .Mui-selected .MuiBottomNavigationAction-label': { fontSize: '10px !important' },
+          />
+
+          {/* ── Bottom sheet: secondary navigation ────────────────────────── */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú de navegación"
+            style={{
+              position: 'fixed',
+              bottom: 0, left: 0, right: 0,
+              zIndex: 1200,
+              background: '#ffffff',
+              borderRadius: '24px 24px 0 0',
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.15), 0 -2px 8px rgba(0,0,0,0.06)',
+              transform: menuOpen ? 'translateY(0)' : 'translateY(100%)',
+              transition: 'transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              paddingBottom: 'env(safe-area-inset-bottom,0px)',
             }}
           >
-            {/* 0 — Home */}
-            <BottomNavigationAction
-              label={t.home || 'Home'}
-              icon={<HomeIcon />}
-              component={Link}
-              href="/"
-            />
-            {/* 1 — Transactions */}
-            <BottomNavigationAction
-              label={t.transactions || 'Historial'}
-              icon={<AccountBalanceWalletIcon />}
-              component={Link}
-              href="/transactions"
-            />
-            {/* 2 — Registro (center hero tab) */}
-            <BottomNavigationAction
-              label="Registro"
-              component={Link}
-              href="/registro"
-              icon={
-                <span style={{
-                  display:        'flex',
-                  alignItems:     'center',
-                  justifyContent: 'center',
-                  width:          '48px',
-                  height:         '48px',
-                  borderRadius:   '50%',
-                  background:     bottomNavValue === 2
-                    ? 'linear-gradient(135deg, #10B981 0%, #0EA5A0 100%)'
-                    : 'linear-gradient(135deg, #10B981 0%, #14B8A6 100%)',
-                  boxShadow:      bottomNavValue === 2
-                    ? '0 6px 20px rgba(16,185,129,0.45)'
-                    : '0 4px 14px rgba(16,185,129,0.32)',
-                  marginBottom:   '-8px',
-                  marginTop:      '-16px',
-                  color:          '#ffffff',
-                  transition:     'all 180ms ease',
-                }}>
-                  <AddCircleIcon sx={{ fontSize: '26px !important', color: '#ffffff' }} />
-                </span>
-              }
-              sx={{
-                '& .MuiBottomNavigationAction-label': {
-                  color:      '#10B981 !important',
-                  fontWeight: '700 !important',
-                  marginTop:  '6px !important',
+            {/* Handle bar */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '12px', paddingBottom: '2px' }}>
+              <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'rgba(0,0,0,0.12)' }} />
+            </div>
+
+            {/* Sheet header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 20px 14px',
+            }}>
+              <span style={{ fontSize: '17px', fontWeight: 700, color: '#111827', letterSpacing: '-0.02em' }}>
+                Navegar a
+              </span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Cerrar menú"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '32px', height: '32px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(0,0,0,0.06)',
+                  color: '#6B7280',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Nav items */}
+            <nav aria-label="Navegación secundaria" style={{ padding: '0 12px 16px' }}>
+              {[
+                {
+                  href: '/',
+                  icon: <Home size={20} />,
+                  label: 'Home',
+                  sublabel: 'Panel principal',
+                  color: '#6366F1',
+                  active: pathname === '/',
                 },
-              }}
-            />
-            {/* 3 — Ingresos */}
-            <BottomNavigationAction
-              label="Ingresos"
-              icon={<TrendingUpIcon />}
-              component={Link}
-              href="/ingresos"
-            />
-            {/* 4 — Settings */}
-            <BottomNavigationAction
-              label={t.settings || 'Ajustes'}
-              icon={<SettingsIcon />}
-              component={Link}
-              href="/settings"
-            />
-          </BottomNavigation>
-        </Paper>
+                {
+                  href: '/transactions',
+                  icon: <ArrowLeftRight size={20} />,
+                  label: 'Movimientos',
+                  sublabel: 'Historial de transacciones',
+                  color: '#3B82F6',
+                  active: pathname.startsWith('/transactions'),
+                },
+                {
+                  href: '/categories',
+                  icon: <Tag size={20} />,
+                  label: 'Hábitos',
+                  sublabel: 'Categorías y hábitos financieros',
+                  color: '#8B5CF6',
+                  active: pathname.startsWith('/categories'),
+                },
+                {
+                  href: '/settings',
+                  icon: <Settings size={20} />,
+                  label: 'Ajustes',
+                  sublabel: 'Configuración y datos',
+                  color: '#6B7280',
+                  active: pathname.startsWith('/settings'),
+                },
+              ].map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    padding: '12px 14px',
+                    borderRadius: '16px',
+                    textDecoration: 'none',
+                    marginBottom: '4px',
+                    background: item.active ? `${item.color}12` : 'transparent',
+                  }}
+                >
+                  {/* Icon container */}
+                  <span style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '44px', height: '44px',
+                    borderRadius: '14px',
+                    background: item.active ? `${item.color}22` : 'rgba(0,0,0,0.05)',
+                    color: item.active ? item.color : '#6B7280',
+                    flexShrink: 0,
+                  }}>
+                    {item.icon}
+                  </span>
+
+                  {/* Label + sublabel */}
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{
+                      display: 'block',
+                      fontSize: '15px',
+                      fontWeight: item.active ? 700 : 500,
+                      color: item.active ? item.color : '#111827',
+                      letterSpacing: '-0.01em',
+                    }}>
+                      {item.label}
+                    </span>
+                    <span style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      color: '#9CA3AF',
+                      marginTop: '1px',
+                    }}>
+                      {item.sublabel}
+                    </span>
+                  </span>
+
+                  {/* Active dot */}
+                  {item.active && (
+                    <span style={{
+                      width: '8px', height: '8px',
+                      borderRadius: '50%',
+                      background: item.color,
+                      flexShrink: 0,
+                    }} />
+                  )}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </>
       )}
 
+      {/* ── Global FAB (quick-add transaction) ── */}
       <button
         type="button"
         onClick={handleModalOpen}
@@ -283,6 +394,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <Plus size={24} aria-hidden="true" />
       </button>
+
       {modalOpen && (
         <TransactionModal
           open={modalOpen}

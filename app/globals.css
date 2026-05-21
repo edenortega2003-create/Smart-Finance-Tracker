@@ -8,9 +8,14 @@
   border-color: var(--color-border);
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
   background-color: var(--color-bg);
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,

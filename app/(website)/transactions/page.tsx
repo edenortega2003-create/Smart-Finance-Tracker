@@ -21,8 +21,6 @@ import {
   FormControl,
   Typography,
   Box,
-  useMediaQuery,
-  useTheme,
   Modal,
   TablePagination,
 } from '@mui/material';
@@ -494,8 +492,6 @@ export default function TransactionsPage() {
   };
   const currencySymbol = getCurrencySymbol(settings.currency);
 
-  const theme    = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { t, loading } = useTranslation();
 
   const [snackbarOpen, setSnackbarOpen]           = useState(false);
@@ -601,7 +597,7 @@ export default function TransactionsPage() {
 
   return (
     <>
-      <Box sx={{ pt: 1, minWidth: 0, overflow: 'hidden' }}>
+      <Box sx={{ pt: 1, minWidth: 0, width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
 
         {/* ── Header ──────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-4" style={{ gap: '8px', minWidth: 0 }}>
@@ -823,7 +819,7 @@ export default function TransactionsPage() {
           <Box sx={{
             position: 'absolute', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: isMobile ? '90%' : 400,
+            width: { xs: '90%', sm: 400 },
             backgroundColor: 'rgba(255, 255, 255, 0.2)',
             backdropFilter: 'blur(20px)',
             border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -914,9 +910,8 @@ export default function TransactionsPage() {
           </div>
         )}
 
-        {/* ── Mobile card list ─────────────────────────────────────── */}
-        {isMobile ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', width: '100%', minWidth: 0 }}>
+        {/* ── Mobile card list (xs only — CSS responsive, SSR-safe) ── */}
+        <Box sx={{ display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
 
             {/* Empty state — first time */}
             {transactions.length === 0 && (
@@ -1103,10 +1098,10 @@ export default function TransactionsPage() {
                 </button>
               </div>
             )}
-          </div>
+        </Box>
 
-        ) : (
-          /* ── Desktop table ───────────────────────────────────────── */
+        {/* ── Desktop table (sm+ only — CSS responsive, SSR-safe) ─── */}
+        <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
           <Paper sx={{ overflowX: 'auto' }}>
             <TableContainer component={Paper}>
               <Table sx={{ minWidth: 650 }} aria-label="transactions table">
@@ -1249,7 +1244,7 @@ export default function TransactionsPage() {
               onRowsPerPageChange={handleChangeRowsPerPage}
             />
           </Paper>
-        )}
+        </Box>
 
         {/* ── Transaction edit modal ───────────────────────────────── */}
         {isModalOpen && (
