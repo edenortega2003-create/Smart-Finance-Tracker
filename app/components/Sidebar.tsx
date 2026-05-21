@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
-  Home, Tag, ArrowLeftRight, Settings, PlusCircle, TrendingUp,
+  Home, Tag, ArrowLeftRight, Settings, PlusCircle, TrendingUp, LogOut,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useUser } from '../hooks/useUser';
+import { createClient } from '@/lib/supabase/client';
 
 export const DRAWER_WIDTH = 248;
 
@@ -227,8 +229,16 @@ function Divider() {
 
 /* ─── Sidebar ────────────────────────────────────────────────────────── */
 export default function Sidebar() {
-  const { t }  = useTranslation();
+  const { t }    = useTranslation();
   const pathname = usePathname();
+  const router   = useRouter();
+  const user     = useUser();
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -375,6 +385,61 @@ export default function Sidebar() {
         />
       </div>
 
+      {/* ── User + Logout ─────────────────────────────────────────────── */}
+      {user && (
+        <div style={{ padding: '4px 12px 8px', flexShrink: 0 }}>
+          <Divider />
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Cerrar sesión"
+            style={{
+              display:    'flex',
+              alignItems: 'center',
+              gap:        '10px',
+              width:      '100%',
+              padding:    '9px 12px',
+              borderRadius: '12px',
+              border:     'none',
+              background: 'transparent',
+              cursor:     'pointer',
+              textAlign:  'left',
+              transition: 'background 130ms ease',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.06)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <span style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              width:          '26px',
+              height:         '26px',
+              borderRadius:   '8px',
+              color:          '#EF4444',
+              flexShrink:     0,
+            }}>
+              <LogOut size={15} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#EF4444' }}>
+                Cerrar sesión
+              </span>
+              <span style={{
+                display:      'block',
+                fontSize:     '11px',
+                color:        '#C4C9D4',
+                overflow:     'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace:   'nowrap',
+              }}>
+                {user.email}
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <div style={{
         padding:    '10px 18px 16px',
@@ -382,10 +447,10 @@ export default function Sidebar() {
         flexShrink: 0,
       }}>
         <p style={{
-          fontSize:  '10.5px',
-          color:     '#C4C9D4',
-          margin:    0,
-          fontWeight: 400,
+          fontSize:      '10.5px',
+          color:         '#C4C9D4',
+          margin:        0,
+          fontWeight:    400,
           letterSpacing: '0.01em',
         }}>
           © 2025 · MentHabit

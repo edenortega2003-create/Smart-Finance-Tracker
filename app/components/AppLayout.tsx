@@ -12,9 +12,11 @@ import {
   Alert,
   Typography,
 } from '@mui/material';
-import { Plus, TrendingDown, TrendingUp, LayoutGrid, Home, ArrowLeftRight, Tag, Settings, X } from 'lucide-react';
+import { Plus, TrendingDown, TrendingUp, LayoutGrid, Home, ArrowLeftRight, Tag, Settings, X, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useUser } from '../hooks/useUser';
+import { createClient } from '@/lib/supabase/client';
 import { useTranslation } from '../hooks/useTranslation';
 import TransactionModal from './TransactionModal';
 import GlobalLoader from './GlobalLoader';
@@ -26,6 +28,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { t } = useTranslation();
   const pathname = usePathname();
+  const router = useRouter();
+  const user = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const getPageTitle = () => {
@@ -55,6 +59,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const handleSnackbarClose = () => setSnackbarOpen(false);
   const handleModalOpen  = () => { setTransaction(null); setModalOpen(true);  };
   const handleModalClose = () => setModalOpen(false);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   /* True when the current page lives in the secondary menu */
   const isSecondaryPage =
@@ -285,7 +295,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Nav items */}
-            <nav aria-label="Navegación secundaria" style={{ padding: '0 12px 16px' }}>
+            <nav aria-label="Navegación secundaria" style={{ padding: '0 12px 8px' }}>
               {[
                 {
                   href: '/',
@@ -379,6 +389,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 </Link>
               ))}
+
+              {/* ── Logout ── */}
+              <div style={{ height: '1px', background: 'rgba(0,0,0,0.06)', margin: '8px 14px 8px' }} />
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  display:    'flex',
+                  alignItems: 'center',
+                  gap:        '14px',
+                  padding:    '12px 14px',
+                  borderRadius: '16px',
+                  width:      '100%',
+                  border:     'none',
+                  background: 'transparent',
+                  cursor:     'pointer',
+                  textAlign:  'left',
+                }}
+              >
+                <span style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '44px', height: '44px',
+                  borderRadius: '14px',
+                  background: 'rgba(239,68,68,0.08)',
+                  color: '#EF4444',
+                  flexShrink: 0,
+                }}>
+                  <LogOut size={20} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: '15px', fontWeight: 500, color: '#EF4444', letterSpacing: '-0.01em' }}>
+                    Cerrar sesión
+                  </span>
+                  {user?.email && (
+                    <span style={{ display: 'block', fontSize: '12px', color: '#9CA3AF', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.email}
+                    </span>
+                  )}
+                </span>
+              </button>
             </nav>
           </div>
         </>
