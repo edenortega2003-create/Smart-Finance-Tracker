@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
-  Home, Tag, ArrowLeftRight, Settings, PlusCircle,
+  Home, Tag, ArrowLeftRight, Settings, PlusCircle, TrendingUp,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 
@@ -321,13 +321,19 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* ── Registro CTA ─────────────────────────────────────────────── */}
-      <div style={{ padding: '16px 12px 10px', flexShrink: 0 }}>
+      {/* ── Quick-entry CTAs ─────────────────────────────────────────── */}
+      <div style={{ padding: '16px 12px 10px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <PrimaryLink
           href="/registro"
           icon={<PlusCircle size={18} />}
-          label="Registro rápido"
+          label="Registrar gasto"
           active={isActive('/registro')}
+        />
+        <PrimaryLink
+          href="/ingresos"
+          icon={<TrendingUp size={18} />}
+          label="Registrar ingreso"
+          active={isActive('/ingresos')}
         />
       </div>
 

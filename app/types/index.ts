@@ -41,15 +41,29 @@ export interface Transaction {
   regularity: Regularity;
   notes?: string;
   category?: Category;    // legacy: kept for compat with data already in localStorage
-  habitCategory?: string; // one of HabitGroupId — inferred if absent
+  habitCategory?: string; // HabitGroupId (base) or UUID (custom habit) — inferred if absent
+}
+
+export interface CustomHabit {
+  id: string;           // UUID
+  label: string;
+  emoji: string;
+  accentColor: string;
+  bgColor: string;
+  borderColor: string;
+  type: 'expense' | 'income' | 'both';
+  description?: string;
+  archived: boolean;
+  createdAt: string;    // ISO date string
 }
 
 export enum Currency {
-  BDT = 'BDT ৳',
+  MXN = 'MXN $',
   USD = 'USD $',
   EUR = 'EUR €',
   GBP = 'GBP £',
   JPY = 'JPY ¥',
+  BDT = 'BDT ৳',
 }
 
 export enum Language {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useStore } from '../../store/useStore';
 import { Transaction } from '../../types';
@@ -29,19 +29,15 @@ import {
 
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { Plus, SlidersHorizontal, Eye, Pencil, Trash2, Search, X, CalendarDays } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search, X, CalendarDays } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import TransactionModal from '../../components/TransactionModal';
 import TransactionDetailsModal from '../../components/TransactionDetailsModal';
 import { Button as AppButton } from '../../components/ui/Button';
 import { getClassificationLabel, getRegularityLabel } from '../../utils/classifySuggestion';
-import { inferHabitGroup, HABIT_GROUPS } from '../../utils/habitGroups';
-
-/* ─── Habit filter chips ────────────────────────────────────────────── */
-const HABIT_CHIPS = [
-  { id: 'all', label: 'Todos', emoji: '✨' },
-  ...HABIT_GROUPS.map(g => ({ id: g.id, label: g.label, emoji: g.emoji })),
-];
+import { HABIT_GROUPS } from '../../utils/habitGroups';
+import { resolveHabitMeta, matchesHabitFilter } from '../../utils/customHabitUtils';
+import { CustomHabit } from '../../types';
 
 const ES_MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -158,10 +154,11 @@ function clsBadgeStyle(cls: string) {
 
 /* ─── Mobile transaction card ───────────────────────────────────────── */
 function TxCard({
-  tx, currencySymbol, onView, onEdit, onDelete,
+  tx, currencySymbol, customHabits, onView, onEdit, onDelete,
 }: {
   tx: Transaction;
   currencySymbol: string;
+  customHabits: CustomHabit[];
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -173,10 +170,10 @@ function TxCard({
   const clsStyle    = clsBadgeStyle(tx.classification ?? '');
   const clsLabel    = getClassificationLabel(tx.classification, tx.type);
   const regLabel    = getRegularityLabel(tx.regularity);
-  const habitId     = !isIncome
-    ? inferHabitGroup(tx.concept ?? tx.category?.name ?? '', tx.habitCategory)
-    : 'otro';
-  const habitMeta   = habitId !== 'otro' ? (HABIT_GROUPS.find(g => g.id === habitId) ?? null) : null;
+  const resolvedHabit = !isIncome
+    ? resolveHabitMeta(tx.concept ?? tx.category?.name ?? '', tx.habitCategory, customHabits)
+    : null;
+  const habitMeta = resolvedHabit?.id !== 'otro' ? resolvedHabit : null;
 
   return (
     <div style={{
@@ -184,10 +181,14 @@ function TxCard({
       borderRadius: '16px',
       border:       '1px solid rgba(0,0,0,0.06)',
       boxShadow:    '0 2px 8px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04)',
-      padding:      '14px 16px',
+      padding:      '12px 14px',
       display:      'flex',
       flexDirection:'column',
       gap:          '8px',
+      minWidth:     0,
+      maxWidth:     '100%',
+      boxSizing:    'border-box',
+      overflow:     'hidden',
     }}>
 
       {/* Row 1: concept + amount */}
@@ -200,6 +201,7 @@ function TxCard({
         }} />
         <span style={{
           flex: 1,
+          minWidth: 0,
           fontSize: '14px',
           fontWeight: 600,
           color: '#111827',
@@ -268,11 +270,10 @@ function TxCard({
           {regLabel}
         </span>
 
-        {/* spacer */}
-        <span style={{ flex: 1 }} />
-
-        {/* date */}
+        {/* date — marginLeft:auto right-aligns without a spacer element */}
         <span style={{
+          marginLeft: 'auto',
+          flexShrink: 0,
           fontSize: '11px',
           color: '#9CA3AF',
           fontVariantNumeric: 'tabular-nums',
@@ -413,7 +414,14 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 
 /* ─── Page ──────────────────────────────────────────────────────────── */
 export default function TransactionsPage() {
-  const { transactions, settings, deleteTransaction, addTransaction } = useStore();
+  const { transactions, settings, customHabits, deleteTransaction, addTransaction } = useStore();
+
+  /* ─── Habit filter chips (computed with custom habits) ──────────────── */
+  const HABIT_CHIPS = useMemo(() => [
+    { id: 'all', label: 'Todos', emoji: '✨' },
+    ...HABIT_GROUPS.map(g => ({ id: g.id, label: g.label, emoji: g.emoji })),
+    ...customHabits.filter(h => !h.archived).map(h => ({ id: h.id, label: h.label, emoji: h.emoji })),
+  ], [customHabits]);
   const [filterSearch, setFilterSearch]             = useState('');
   const [filterType, setFilterType]                 = useState<'all' | 'income' | 'expense'>('all');
   const [filterHabit, setFilterHabit]               = useState('all');
@@ -504,29 +512,22 @@ export default function TransactionsPage() {
     setUndoTx(null);
   };
 
-  const sortedTransactions = transactions.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  const sortedTransactions = useMemo(
+    () => [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [transactions],
   );
 
-  const filteredTransactions = sortedTransactions.filter(transaction => {
-    // Search
+  const filteredTransactions = useMemo(() => sortedTransactions.filter(transaction => {
     if (filterSearch) {
       const q       = filterSearch.toLowerCase();
       const concept = (transaction.concept ?? transaction.category?.name ?? '').toLowerCase();
       const notes   = (transaction.notes ?? '').toLowerCase();
       if (!concept.includes(q) && !notes.includes(q)) return false;
     }
-    // Type
     if (filterType !== 'all' && transaction.type !== filterType) return false;
-    // Habit
     if (filterHabit !== 'all') {
-      const gid = inferHabitGroup(
-        transaction.concept ?? transaction.category?.name ?? '',
-        transaction.habitCategory,
-      );
-      if (gid !== filterHabit) return false;
+      if (!matchesHabitFilter(transaction, filterHabit, customHabits)) return false;
     }
-    // Date range
     const transactionDate = new Date(transaction.date);
     if (filterStartDate && filterEndDate) {
       const start = new Date(filterStartDate);
@@ -534,14 +535,13 @@ export default function TransactionsPage() {
       if (transactionDate < start || transactionDate > end) return false;
     }
     if (filterMonth) {
-      const monthIndex = parseInt(filterMonth, 10) - 1;
-      if (transactionDate.getMonth() !== monthIndex) return false;
+      if (transactionDate.getMonth() !== parseInt(filterMonth, 10) - 1) return false;
     }
     if (filterYear) {
       if (transactionDate.getFullYear().toString() !== filterYear) return false;
     }
     return true;
-  });
+  }), [sortedTransactions, filterSearch, filterType, filterHabit, filterStartDate, filterEndDate, filterMonth, filterYear, customHabits]);
 
   const handleChangePage = (event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -556,20 +556,24 @@ export default function TransactionsPage() {
   );
 
   /* ── Summary + smart empty state data ──────────────────────────────── */
-  const expenseTxs   = filteredTransactions.filter(t => t.type === 'expense');
-  const totalExpense = expenseTxs.reduce((s, t) => s + t.amount, 0);
-  const totalIncome  = filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-
-  const habitTotals: Record<string, number> = {};
-  for (const tx of expenseTxs) {
-    const gid = inferHabitGroup(tx.concept ?? tx.category?.name ?? '', tx.habitCategory);
-    if (gid !== 'otro') habitTotals[gid] = (habitTotals[gid] ?? 0) + tx.amount;
-  }
-  const topHabitId   = Object.entries(habitTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  const dominantHabit = topHabitId ? (HABIT_GROUPS.find(g => g.id === topHabitId) ?? null) : null;
+  const { totalExpense, totalIncome, dominantHabit } = useMemo(() => {
+    const expenseTxs = filteredTransactions.filter(t => t.type === 'expense');
+    const totalExpense = expenseTxs.reduce((s, t) => s + t.amount, 0);
+    const totalIncome  = filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const habitTotals: Record<string, number> = {};
+    for (const tx of expenseTxs) {
+      const meta = resolveHabitMeta(tx.concept ?? tx.category?.name ?? '', tx.habitCategory, customHabits);
+      if (meta.id !== 'otro') habitTotals[meta.id] = (habitTotals[meta.id] ?? 0) + tx.amount;
+    }
+    const topHabitId = Object.entries(habitTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const dominantHabit = topHabitId
+      ? (HABIT_GROUPS.find(g => g.id === topHabitId) ?? customHabits.find(h => h.id === topHabitId) ?? null)
+      : null;
+    return { totalExpense, totalIncome, dominantHabit };
+  }, [filteredTransactions, customHabits]);
 
   const emptyFilterHabitMeta = filterHabit !== 'all'
-    ? (HABIT_GROUPS.find(g => g.id === filterHabit) ?? null)
+    ? (HABIT_GROUPS.find(g => g.id === filterHabit) ?? customHabits.find(h => h.id === filterHabit) ?? null)
     : null;
 
   const years  = Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))).sort();
@@ -597,21 +601,26 @@ export default function TransactionsPage() {
 
   return (
     <>
-      <Box sx={{ pt: 1 }}>
+      <Box sx={{ pt: 1, minWidth: 0, overflow: 'hidden' }}>
 
         {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
+        <div className="flex items-center justify-between mb-4" style={{ gap: '8px', minWidth: 0 }}>
+          <h1
+            className="text-xl font-semibold tracking-tight text-gray-900"
+            style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}
+          >
             {t.transactions}
           </h1>
-          <AppButton variant="primary" size="sm" onClick={() => handleOpenModal()}>
-            <Plus size={14} aria-hidden="true" />
-            {t.add_new_transaction}
-          </AppButton>
+          <div style={{ flexShrink: 0 }}>
+            <AppButton variant="primary" size="sm" onClick={() => handleOpenModal()}>
+              <Plus size={14} aria-hidden="true" />
+              <span className="hidden sm:inline">&nbsp;{t.add_new_transaction}</span>
+            </AppButton>
+          </div>
         </div>
 
         {/* ── Inline filter bar ────────────────────────────────────── */}
-        <div style={{ marginBottom: '16px' }}>
+        <div style={{ marginBottom: '16px', minWidth: 0, width: '100%' }}>
 
           {/* Row 1: search */}
           <div style={{ position: 'relative', marginBottom: '10px' }}>
@@ -719,6 +728,8 @@ export default function TransactionsPage() {
             display: 'flex', gap: '6px', overflowX: 'auto',
             paddingBottom: '4px', marginBottom: '8px',
             scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
+            width: '100%', minWidth: 0,
           }}>
             {HABIT_CHIPS.map(chip => {
               const active = filterHabit === chip.id;
@@ -759,7 +770,11 @@ export default function TransactionsPage() {
               )}
               {filterHabit !== 'all' && (
                 <ActiveChip
-                  label={HABIT_GROUPS.find(g => g.id === filterHabit)?.label ?? filterHabit}
+                  label={
+                    HABIT_GROUPS.find(g => g.id === filterHabit)?.label ??
+                    customHabits.find(h => h.id === filterHabit)?.label ??
+                    filterHabit
+                  }
                   onRemove={() => { setFilterHabit('all'); setPage(0); }}
                 />
               )}
@@ -901,7 +916,7 @@ export default function TransactionsPage() {
 
         {/* ── Mobile card list ─────────────────────────────────────── */}
         {isMobile ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', width: '100%', minWidth: 0 }}>
 
             {/* Empty state — first time */}
             {transactions.length === 0 && (
@@ -987,7 +1002,7 @@ export default function TransactionsPage() {
 
             {/* Date groups */}
             {dateGroups.map(group => (
-              <div key={group.label} style={{ marginBottom: '8px' }}>
+              <div key={group.label} style={{ marginBottom: '8px', minWidth: 0 }}>
 
                 {/* Date section header */}
                 <div style={{
@@ -1022,12 +1037,13 @@ export default function TransactionsPage() {
                 </div>
 
                 {/* Cards */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
                   {group.items.map(tx => (
                     <TxCard
                       key={tx.id}
                       tx={tx}
                       currencySymbol={currencySymbol}
+                      customHabits={customHabits}
                       onView={()   => handleOpenViewModal(tx)}
                       onEdit={()   => handleOpenModal(tx)}
                       onDelete={()  => handleDeleteWithUndo(tx)}
@@ -1090,8 +1106,8 @@ export default function TransactionsPage() {
           </div>
 
         ) : (
-          /* ── Desktop table (unchanged) ──────────────────────────── */
-          <Paper>
+          /* ── Desktop table ───────────────────────────────────────── */
+          <Paper sx={{ overflowX: 'auto' }}>
             <TableContainer component={Paper}>
               <Table sx={{ minWidth: 650 }} aria-label="transactions table">
                 <TableHead>

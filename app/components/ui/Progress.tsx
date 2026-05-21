@@ -31,7 +31,6 @@ export function Progress({
   value,
   current,
   limit,
-  currency = '$',
   showLabels = true,
   className,
 }: ProgressProps) {

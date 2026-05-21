@@ -17,10 +17,10 @@ import {
 } from '@mui/material';
 import { Plus } from 'lucide-react';
 import HomeIcon from '@mui/icons-material/Home';
-import CategoryIcon from '@mui/icons-material/Category';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslation } from '../hooks/useTranslation';
@@ -42,6 +42,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return t.home || 'Dashboard';
     } else if (pathname === '/registro') {
       return 'Registro rápido';
+    } else if (pathname === '/ingresos') {
+      return 'Ingresos';
     } else if (pathname === '/categories') {
       return t.categories || 'Categories';
     } else if (pathname === '/transactions') {
@@ -68,7 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setBottomNavValue(1);
     } else if (pathname === '/registro') {
       setBottomNavValue(2);
-    } else if (pathname.startsWith('/categories')) {
+    } else if (pathname === '/ingresos') {
       setBottomNavValue(3);
     } else if (pathname.startsWith('/settings')) {
       setBottomNavValue(4);
@@ -254,12 +256,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 },
               }}
             />
-            {/* 3 — Categories */}
+            {/* 3 — Ingresos */}
             <BottomNavigationAction
-              label={t.categories || 'Categorías'}
-              icon={<CategoryIcon />}
+              label="Ingresos"
+              icon={<TrendingUpIcon />}
               component={Link}
-              href="/categories"
+              href="/ingresos"
             />
             {/* 4 — Settings */}
             <BottomNavigationAction

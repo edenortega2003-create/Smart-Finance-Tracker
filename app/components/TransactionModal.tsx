@@ -1,14 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, TrendingDown, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 
-import { cn } from '@/lib/utils';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
 import { useTranslation } from '../hooks/useTranslation';
 import {
   Transaction,
@@ -24,6 +21,24 @@ import {
   incomeClassificationLabels,
   regularityLabels,
 } from '../utils/classifySuggestion';
+import { HABIT_GROUPS } from '../utils/habitGroups';
+
+// ─── Classification chip colors ───────────────────────────────────────────────
+
+const CLS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
+  hormiga:    { bg: '#FFF7ED', color: '#C2410C', border: 'rgba(194,65,12,0.25)' },
+  fijo:       { bg: '#EFF6FF', color: '#1D4ED8', border: 'rgba(29,78,216,0.25)' },
+  variable:   { bg: '#F0FDF4', color: '#15803D', border: 'rgba(21,128,61,0.25)' },
+  esporadico: { bg: '#FAF5FF', color: '#7C3AED', border: 'rgba(124,58,237,0.25)' },
+  inversion:  { bg: '#FFFBEB', color: '#B45309', border: 'rgba(180,83,9,0.25)' },
+  deuda:      { bg: '#FFF1F2', color: '#BE123C', border: 'rgba(190,18,60,0.25)' },
+  ahorro:     { bg: '#DCFCE7', color: '#166534', border: 'rgba(22,101,52,0.25)' },
+  otro:       { bg: '#F1F5F9', color: '#475569', border: 'rgba(71,85,105,0.25)' },
+  sueldo:     { bg: '#F0FDF4', color: '#15803D', border: 'rgba(21,128,61,0.25)' },
+  venta:      { bg: '#EFF6FF', color: '#1D4ED8', border: 'rgba(29,78,216,0.25)' },
+  regalo:     { bg: '#FFF7ED', color: '#C2410C', border: 'rgba(194,65,12,0.25)' },
+  reembolso:  { bg: '#F5F3FF', color: '#6D28D9', border: 'rgba(109,40,217,0.25)' },
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +51,7 @@ interface ModalTransactionState {
   classification: ExpenseClassification | IncomeClassification;
   regularity: Regularity;
   notes?: string;
+  habitCategory?: string;
 }
 
 interface TransactionModalProps {
@@ -63,6 +79,7 @@ function buildInitialState(
       classification: existing.classification ?? suggested.classification,
       regularity:     existing.regularity     ?? suggested.regularity,
       notes:          existing.notes ?? '',
+      habitCategory:  existing.habitCategory,
     };
   }
   return {
@@ -73,7 +90,20 @@ function buildInitialState(
     classification: 'otro',
     regularity:     'no_regular',
     notes:          '',
+    habitCategory:  undefined,
   };
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{
+      margin: '0 0 10px',
+      fontSize: '11px', fontWeight: 700, color: '#9CA3AF',
+      letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+    }}>
+      {children}
+    </p>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -86,13 +116,17 @@ export default function TransactionModal({
 }: TransactionModalProps) {
   const { addTransaction, updateTransaction } = useStore();
   const { t } = useTranslation();
-  const conceptRef = useRef<HTMLInputElement>(null);
 
   const [transaction, setTransaction] = useState<ModalTransactionState>(
     () => buildInitialState(initialTransaction),
   );
 
-  // Dedicated portal div — avoids Next.js React-root conflict with document.body
+  const [showNotes, setShowNotes] = useState(
+    () => Boolean(initialTransaction && (initialTransaction as Transaction).notes),
+  );
+
+  const [isMobile, setIsMobile] = useState(false);
+
   const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -103,7 +137,18 @@ export default function TransactionModal({
     return () => { el.remove(); };
   }, []);
 
-  // ─── Handlers (unchanged) ─────────────────────────────────────────────────
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 640);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      setTransaction(buildInitialState(initialTransaction));
+      setShowNotes(Boolean(initialTransaction && (initialTransaction as Transaction).notes));
+    }
+  }, [open, initialTransaction]);
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const handleTypeSelect = (newType: TransactionType) => {
     const suggested = suggestFromConcept(transaction.concept, newType);
@@ -128,11 +173,6 @@ export default function TransactionModal({
     if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
       setTransaction(prev => ({ ...prev, amount: value }));
     }
-  };
-
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setTransaction(prev => ({ ...prev, [name]: value }));
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,6 +203,7 @@ export default function TransactionModal({
       classification: transaction.classification,
       regularity:     transaction.regularity,
       notes:          transaction.notes,
+      habitCategory:  transaction.habitCategory,
       category: { id: 'legacy', name: transaction.concept.trim(), type: transaction.type },
     };
 
@@ -180,14 +221,35 @@ export default function TransactionModal({
 
   if (!open || !portalEl) return null;
 
-  const isExpense = transaction.type === 'expense';
-  const classificationOptions =
-    transaction.type === 'expense'
-      ? Object.entries(expenseClassificationLabels)
-      : Object.entries(incomeClassificationLabels);
+  const isExpense          = transaction.type === 'expense';
+  const amountColor        = isExpense ? '#F43F5E' : '#059669';
+  const heroTint           = isExpense ? 'rgba(244,63,94,0.06)'  : 'rgba(5,150,105,0.06)';
+  const heroBorder         = isExpense ? 'rgba(244,63,94,0.18)'  : 'rgba(5,150,105,0.18)';
+  const classificationOpts = isExpense
+    ? Object.entries(expenseClassificationLabels)
+    : Object.entries(incomeClassificationLabels);
+  const meaningfulHabits   = HABIT_GROUPS.filter(g => g.id !== 'otro');
 
-  // Psychologically calm: rose (not alarm red) for expense, emerald for income
-  const amountColor = isExpense ? '#F43F5E' : '#059669';
+  const panelInitial = isMobile ? { y: '100%' } : { x: '100%' };
+  const panelAnimate = isMobile ? { y: 0 }      : { x: 0 };
+  const panelPositionStyle = isMobile
+    ? {
+        bottom: 0 as const, left: 0 as const, right: 0 as const,
+        maxHeight: '92vh',
+        borderRadius: '20px 20px 0 0',
+        borderTop: '1px solid rgba(0,0,0,0.07)',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.10), 0 -2px 8px rgba(0,0,0,0.05)',
+      }
+    : {
+        top: 0 as const, right: 0 as const, bottom: 0 as const,
+        width: '100%',
+        maxWidth: '480px',
+        borderLeft: '1px solid rgba(0,0,0,0.07)',
+        boxShadow: '-8px 0 40px rgba(0,0,0,0.10), -2px 0 8px rgba(0,0,0,0.05)',
+      };
+
+  const bodyPad = isMobile ? '16px 20px' : '20px 24px';
+  const headPad = isMobile ? '12px 20px' : '20px 24px 18px';
 
   return createPortal(
     <>
@@ -199,182 +261,127 @@ export default function TransactionModal({
         onClick={onClose}
         aria-hidden="true"
         style={{
-          position:              'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex:                9998,
-          backgroundColor:       'rgba(0,0,0,0.45)',
-          backdropFilter:        'blur(4px)',
-          WebkitBackdropFilter:  'blur(4px)',
-          cursor:                'default',
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 9998,
+          backgroundColor: 'rgba(0,0,0,0.45)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          cursor: 'default',
         }}
       />
 
-      {/* ── Full-screen layer (pointer-events:none) ─────────────────────── */}
-      <div
-        style={{
-          position:      'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex:        9999,
-          pointerEvents: 'none',
-        }}
-      >
-        {/* ── Panel — anchored to right edge, full height ─────────────── */}
+      {/* ── Full-screen pointer-events layer ──────────────────────────────── */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, pointerEvents: 'none' }}>
         <motion.div
           role="dialog"
           aria-modal="true"
           aria-labelledby="tx-panel-title"
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
+          initial={panelInitial}
+          animate={panelAnimate}
           transition={{ type: 'spring', damping: 30, stiffness: 280 }}
           style={{
-            position:        'absolute',
-            top: 0, right: 0, bottom: 0,
-            width:           '100%',
-            maxWidth:        '480px',
-            pointerEvents:   'auto',
-            // Visual
-            display:         'flex',
-            flexDirection:   'column',
-            backgroundColor: '#ffffff',
-            borderLeft:      '1px solid rgba(0,0,0,0.07)',
-            boxShadow:       '-8px 0 40px rgba(0,0,0,0.10), -2px 0 8px rgba(0,0,0,0.05)',
-            overflow:        'hidden',
+            position: 'absolute',
+            ...panelPositionStyle,
+            pointerEvents: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#FAFAFA',
+            overflow: 'hidden',
           }}
         >
-          {/* ── Header ──────────────────────────────────────────────────── */}
-          <div
-            style={{
-              display:        'flex',
-              alignItems:     'flex-start',
-              justifyContent: 'space-between',
-              padding:        '20px 24px 18px',
-              borderBottom:   '1px solid rgba(0,0,0,0.06)',
-              flexShrink:     0,
-              backgroundColor: '#ffffff',
-            }}
-          >
-            <div>
-              <h2
-                id="tx-panel-title"
-                style={{
-                  margin:        0,
-                  fontSize:      '17px',
-                  fontWeight:    600,
-                  color:         '#111827',
-                  letterSpacing: '-0.01em',
-                  lineHeight:    1.3,
-                }}
-              >
-                {transaction.id ? t.edit_transaction : t.add_new_transaction}
-              </h2>
-              <p
-                style={{
-                  margin:     '4px 0 0',
-                  fontSize:   '13px',
-                  color:      '#9CA3AF',
-                  fontWeight: 400,
-                  lineHeight: 1.4,
-                }}
-              >
-                {transaction.id
-                  ? 'Actualiza los detalles del movimiento'
-                  : 'Registra un nuevo movimiento financiero'}
-              </p>
+          {/* Drag handle (mobile) */}
+          {isMobile && (
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '12px', paddingBottom: '2px', flexShrink: 0 }}>
+              <div style={{ width: '36px', height: '4px', borderRadius: '2px', backgroundColor: 'rgba(0,0,0,0.15)' }} />
             </div>
+          )}
+
+          {/* ── Header ──────────────────────────────────────────────────── */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: headPad,
+            borderBottom: '1px solid rgba(0,0,0,0.06)',
+            flexShrink: 0,
+            backgroundColor: '#FAFAFA',
+          }}>
+            <h2
+              id="tx-panel-title"
+              style={{ margin: 0, fontSize: '17px', fontWeight: 600, color: '#111827', letterSpacing: '-0.01em', lineHeight: 1.3 }}
+            >
+              {transaction.id ? t.edit_transaction : t.add_new_transaction}
+            </h2>
             <button
               type="button"
               onClick={onClose}
               aria-label="Cerrar"
-              className={cn(
-                'flex-shrink-0 ml-4 mt-0.5 p-1.5 rounded-lg text-gray-400 transition-colors',
-                'hover:text-gray-700 hover:bg-gray-100',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
-              )}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '32px', height: '32px', borderRadius: '8px',
+                border: 'none', backgroundColor: 'rgba(0,0,0,0.05)',
+                color: '#6B7280', cursor: 'pointer', flexShrink: 0,
+              }}
             >
-              <X size={18} aria-hidden="true" />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
 
           {/* ── Scrollable body ─────────────────────────────────────────── */}
-          <div
-            style={{
-              flex:           '1 1 0%',
-              overflowY:      'auto',
-              padding:        '24px',
-              display:        'flex',
-              flexDirection:  'column',
-              gap:            '24px',
-              minHeight:      0,
-            }}
-          >
-            {/* Tipo */}
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2.5">Tipo</p>
-              <div className="grid grid-cols-2 gap-2.5">
+          <div style={{
+            flex: '1 1 0%', overflowY: 'auto',
+            padding: bodyPad,
+            display: 'flex', flexDirection: 'column', gap: '20px',
+            minHeight: 0,
+          }}>
+
+            {/* ── Hero: Tipo + Monto ────────────────────────────────────── */}
+            <div style={{
+              borderRadius: '16px',
+              backgroundColor: heroTint,
+              border: `1.5px solid ${heroBorder}`,
+              padding: '16px',
+              transition: 'background-color 200ms, border-color 200ms',
+            }}>
+              {/* Type pills */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                 <button
                   type="button"
                   aria-pressed={isExpense}
                   onClick={() => handleTypeSelect('expense')}
-                  className={cn(
-                    'flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-                    'border-2 transition-all duration-100',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400',
-                  )}
                   style={{
-                    height:          '44px',
-                    // Soft rose palette — no alarm red
-                    backgroundColor: isExpense ? '#FFF1F2' : '#ffffff',
-                    color:           isExpense ? '#E11D48' : '#A1A1AA',
-                    borderColor:     isExpense ? '#F43F5E' : '#F4F4F5',
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '8px 16px', borderRadius: '999px',
+                    border: '1.5px solid', fontSize: '13px', fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 120ms', fontFamily: 'inherit',
+                    backgroundColor: isExpense ? '#F43F5E' : 'rgba(0,0,0,0.04)',
+                    color:           isExpense ? '#ffffff'  : '#9CA3AF',
+                    borderColor:     isExpense ? '#F43F5E'  : 'transparent',
                   }}
                 >
-                  <TrendingDown size={15} aria-hidden="true" />
+                  <TrendingDown size={13} aria-hidden="true" />
                   Gasto
                 </button>
                 <button
                   type="button"
                   aria-pressed={!isExpense}
                   onClick={() => handleTypeSelect('income')}
-                  className={cn(
-                    'flex items-center justify-center gap-2 rounded-xl text-sm font-semibold',
-                    'border-2 transition-all duration-100',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400',
-                  )}
                   style={{
-                    height:          '44px',
-                    backgroundColor: !isExpense ? '#F0FDF4' : '#ffffff',
-                    color:           !isExpense ? '#16A34A' : '#9CA3AF',
-                    borderColor:     !isExpense ? '#22C55E' : '#F3F4F6',
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '8px 16px', borderRadius: '999px',
+                    border: '1.5px solid', fontSize: '13px', fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 120ms', fontFamily: 'inherit',
+                    backgroundColor: !isExpense ? '#059669' : 'rgba(0,0,0,0.04)',
+                    color:           !isExpense ? '#ffffff'  : '#9CA3AF',
+                    borderColor:     !isExpense ? '#059669'  : 'transparent',
                   }}
                 >
-                  <TrendingUp size={15} aria-hidden="true" />
+                  <TrendingUp size={13} aria-hidden="true" />
                   Ingreso
                 </button>
               </div>
-            </div>
 
-            {/* Monto — hero field */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="tx-amount"
-                className="text-sm font-medium text-gray-700"
-              >
-                {t.amount}
-              </label>
-              <div style={{ position: 'relative' }}>
-                <span
-                  style={{
-                    position:      'absolute',
-                    top: 0, left: '14px', bottom: 0,
-                    display:       'flex',
-                    alignItems:    'center',
-                    fontSize:      '20px',
-                    fontWeight:    600,
-                    color:         amountColor,
-                    pointerEvents: 'none',
-                    lineHeight:    1,
-                  }}
-                >
+              {/* Amount */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '28px', fontWeight: 700, color: amountColor, lineHeight: 1, flexShrink: 0 }}>
                   $
                 </span>
                 <input
@@ -385,235 +392,243 @@ export default function TransactionModal({
                   value={transaction.amount}
                   onChange={handleAmountChange}
                   style={{
-                    width:        '100%',
-                    height:       '56px',
-                    paddingLeft:  '36px',
-                    paddingRight: '16px',
-                    fontSize:     '28px',
-                    fontWeight:   600,
+                    flex: 1, minWidth: 0,
+                    height: '48px', padding: '0 4px',
+                    fontSize: '36px', fontWeight: 700,
                     fontVariantNumeric: 'tabular-nums',
-                    color:        amountColor,
-                    border:       '1.5px solid rgba(0,0,0,0.10)',
-                    borderRadius: '12px',
-                    backgroundColor: '#ffffff',
-                    outline:      'none',
-                    transition:   'border-color 100ms, box-shadow 100ms',
-                    boxSizing:    'border-box',
-                  }}
-                  onFocus={e => {
-                    e.target.style.borderColor = '#6366F1';
-                    e.target.style.boxShadow   = '0 0 0 3px rgba(99,102,241,0.12)';
-                  }}
-                  onBlur={e => {
-                    e.target.style.borderColor = 'rgba(0,0,0,0.10)';
-                    e.target.style.boxShadow   = 'none';
+                    color: amountColor,
+                    border: 'none', backgroundColor: 'transparent',
+                    outline: 'none', boxSizing: 'border-box',
+                    fontFamily: 'inherit',
                   }}
                 />
               </div>
             </div>
 
-            {/* Concepto */}
-            <Input
-              ref={conceptRef}
-              label="Concepto"
-              placeholder="café, renta, gasolina..."
-              value={transaction.concept}
-              onChange={handleConceptChange}
-            />
-
-            {/* Clasificación */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="tx-classification"
-                className="text-sm font-medium text-gray-700"
-              >
-                Clasificación
-              </label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  id="tx-classification"
-                  name="classification"
-                  value={transaction.classification}
-                  onChange={handleSelectChange}
-                  style={{
-                    width:           '100%',
-                    height:          '44px',
-                    padding:         '0 36px 0 14px',
-                    fontSize:        '14px',
-                    color:           '#111827',
-                    border:          '1.5px solid rgba(0,0,0,0.10)',
-                    borderRadius:    '10px',
-                    backgroundColor: '#ffffff',
-                    appearance:      'none',
-                    WebkitAppearance:'none',
-                    cursor:          'pointer',
-                    outline:         'none',
-                    transition:      'border-color 100ms, box-shadow 100ms',
-                    boxSizing:       'border-box',
-                  }}
-                  onFocus={e => {
-                    e.target.style.borderColor = '#6366F1';
-                    e.target.style.boxShadow   = '0 0 0 3px rgba(99,102,241,0.12)';
-                  }}
-                  onBlur={e => {
-                    e.target.style.borderColor = 'rgba(0,0,0,0.10)';
-                    e.target.style.boxShadow   = 'none';
-                  }}
-                >
-                  {classificationOptions.map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <ChevronIcon />
-              </div>
-            </div>
-
-            {/* Regularidad */}
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="tx-regularity"
-                className="text-sm font-medium text-gray-700"
-              >
-                Regularidad
-              </label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  id="tx-regularity"
-                  name="regularity"
-                  value={transaction.regularity}
-                  onChange={handleSelectChange}
-                  style={{
-                    width:           '100%',
-                    height:          '44px',
-                    padding:         '0 36px 0 14px',
-                    fontSize:        '14px',
-                    color:           '#111827',
-                    border:          '1.5px solid rgba(0,0,0,0.10)',
-                    borderRadius:    '10px',
-                    backgroundColor: '#ffffff',
-                    appearance:      'none',
-                    WebkitAppearance:'none',
-                    cursor:          'pointer',
-                    outline:         'none',
-                    transition:      'border-color 100ms, box-shadow 100ms',
-                    boxSizing:       'border-box',
-                  }}
-                  onFocus={e => {
-                    e.target.style.borderColor = '#6366F1';
-                    e.target.style.boxShadow   = '0 0 0 3px rgba(99,102,241,0.12)';
-                  }}
-                  onBlur={e => {
-                    e.target.style.borderColor = 'rgba(0,0,0,0.10)';
-                    e.target.style.boxShadow   = 'none';
-                  }}
-                >
-                  {Object.entries(regularityLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <ChevronIcon />
-              </div>
-            </div>
-
-            {/* Fecha */}
-            <Input
-              label={t.date}
-              type="date"
-              value={transaction.date}
-              onChange={handleDateChange}
-            />
-
-            {/* Notas */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="tx-notes" className="text-sm font-medium text-gray-700">
-                {t.notes}{' '}
-                <span className="font-normal text-gray-400">(opcional)</span>
-              </label>
-              <textarea
-                id="tx-notes"
-                rows={3}
-                placeholder="Detalles adicionales..."
-                value={transaction.notes || ''}
-                onChange={handleNotesChange}
-                className="resize-none"
+            {/* ── Concepto ─────────────────────────────────────────────── */}
+            <div>
+              <SectionLabel>Concepto</SectionLabel>
+              <input
+                type="text"
+                placeholder="café, renta, gasolina..."
+                value={transaction.concept}
+                onChange={handleConceptChange}
                 style={{
-                  width:           '100%',
-                  padding:         '10px 14px',
-                  fontSize:        '14px',
-                  color:           '#111827',
-                  border:          '1.5px solid rgba(0,0,0,0.10)',
-                  borderRadius:    '10px',
-                  backgroundColor: '#ffffff',
-                  outline:         'none',
-                  transition:      'border-color 100ms, box-shadow 100ms',
-                  fontFamily:      'inherit',
-                  lineHeight:      1.5,
-                  boxSizing:       'border-box',
+                  width: '100%', height: '44px', padding: '0 14px',
+                  fontSize: '15px', color: '#111827',
+                  border: '1.5px solid rgba(0,0,0,0.10)', borderRadius: '10px',
+                  backgroundColor: '#ffffff', outline: 'none',
+                  transition: 'border-color 100ms, box-shadow 100ms',
+                  boxSizing: 'border-box', fontFamily: 'inherit',
                 }}
-                onFocus={e => {
-                  e.target.style.borderColor = '#6366F1';
-                  e.target.style.boxShadow   = '0 0 0 3px rgba(99,102,241,0.12)';
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = 'rgba(0,0,0,0.10)';
-                  e.target.style.boxShadow   = 'none';
-                }}
+                onFocus={e => { e.target.style.borderColor = '#6366F1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+                onBlur={e  => { e.target.style.borderColor = 'rgba(0,0,0,0.10)'; e.target.style.boxShadow = 'none'; }}
               />
+            </div>
+
+            {/* ── Hábito (expense only) ─────────────────────────────────── */}
+            {isExpense && (
+              <div>
+                <SectionLabel>Hábito</SectionLabel>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {meaningfulHabits.map(g => {
+                    const sel = transaction.habitCategory === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setTransaction(prev => ({
+                          ...prev,
+                          habitCategory: sel ? undefined : g.id,
+                        }))}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '5px',
+                          padding: '7px 12px', borderRadius: '999px',
+                          border: '1.5px solid', fontSize: '12px', fontWeight: 600,
+                          cursor: 'pointer', transition: 'all 120ms', fontFamily: 'inherit',
+                          backgroundColor: sel ? g.bgColor         : '#ffffff',
+                          color:           sel ? g.accentColor     : '#6B7280',
+                          borderColor:     sel ? g.borderColor     : 'rgba(0,0,0,0.10)',
+                        }}
+                      >
+                        <span aria-hidden="true">{g.emoji}</span>
+                        {g.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Clasificación ─────────────────────────────────────────── */}
+            <div>
+              <SectionLabel>Clasificación</SectionLabel>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {classificationOpts.map(([value, label]) => {
+                  const sel    = transaction.classification === value;
+                  const colors = CLS_COLORS[value] ?? CLS_COLORS['otro'];
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setTransaction(prev => ({
+                        ...prev,
+                        classification: value as ExpenseClassification | IncomeClassification,
+                      }))}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '7px 12px', borderRadius: '999px',
+                        border: '1.5px solid', fontSize: '12px', fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 120ms', fontFamily: 'inherit',
+                        backgroundColor: sel ? colors.bg     : '#ffffff',
+                        color:           sel ? colors.color  : '#6B7280',
+                        borderColor:     sel ? colors.border : 'rgba(0,0,0,0.10)',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Regularidad ───────────────────────────────────────────── */}
+            <div>
+              <SectionLabel>Regularidad</SectionLabel>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {Object.entries(regularityLabels).map(([value, label]) => {
+                  const sel = transaction.regularity === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setTransaction(prev => ({
+                        ...prev,
+                        regularity: value as Regularity,
+                      }))}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '7px 12px', borderRadius: '999px',
+                        border: '1.5px solid', fontSize: '12px', fontWeight: 600,
+                        cursor: 'pointer', transition: 'all 120ms', fontFamily: 'inherit',
+                        backgroundColor: sel ? 'rgba(99,102,241,0.10)' : '#ffffff',
+                        color:           sel ? '#4F46E5'               : '#6B7280',
+                        borderColor:     sel ? 'rgba(99,102,241,0.30)' : 'rgba(0,0,0,0.10)',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Fecha ─────────────────────────────────────────────────── */}
+            <div>
+              <SectionLabel>{t.date}</SectionLabel>
+              <input
+                type="date"
+                value={transaction.date}
+                onChange={handleDateChange}
+                style={{
+                  width: '100%', height: '44px', padding: '0 14px',
+                  fontSize: '14px', color: '#111827',
+                  border: '1.5px solid rgba(0,0,0,0.10)', borderRadius: '10px',
+                  backgroundColor: '#ffffff', outline: 'none',
+                  transition: 'border-color 100ms, box-shadow 100ms',
+                  boxSizing: 'border-box', fontFamily: 'inherit', cursor: 'pointer',
+                }}
+                onFocus={e => { e.target.style.borderColor = '#6366F1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+                onBlur={e  => { e.target.style.borderColor = 'rgba(0,0,0,0.10)'; e.target.style.boxShadow = 'none'; }}
+              />
+            </div>
+
+            {/* ── Notas (collapsible) ────────────────────────────────────── */}
+            <div>
+              {showNotes ? (
+                <>
+                  <SectionLabel>{t.notes}</SectionLabel>
+                  <textarea
+                    id="tx-notes"
+                    rows={3}
+                    placeholder="Detalles adicionales..."
+                    value={transaction.notes || ''}
+                    onChange={handleNotesChange}
+                    style={{
+                      width: '100%', padding: '10px 14px',
+                      fontSize: '14px', color: '#111827',
+                      border: '1.5px solid rgba(0,0,0,0.10)', borderRadius: '10px',
+                      backgroundColor: '#ffffff', outline: 'none',
+                      resize: 'none' as const,
+                      transition: 'border-color 100ms, box-shadow 100ms',
+                      fontFamily: 'inherit', lineHeight: 1.5,
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={e => { e.target.style.borderColor = '#6366F1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+                    onBlur={e  => { e.target.style.borderColor = 'rgba(0,0,0,0.10)'; e.target.style.boxShadow = 'none'; }}
+                  />
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowNotes(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: 0, border: 'none', background: 'none',
+                    color: '#9CA3AF', fontSize: '13px', fontWeight: 500,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ fontSize: '16px', lineHeight: 1 }}>⊕</span>
+                  Agregar nota
+                </button>
+              )}
             </div>
           </div>
 
           {/* ── Footer ──────────────────────────────────────────────────── */}
-          <div
-            style={{
-              display:         'flex',
-              gap:             '12px',
-              padding:         '16px 24px',
-              borderTop:       '1px solid rgba(0,0,0,0.06)',
-              backgroundColor: '#ffffff',
-              flexShrink:      0,
-            }}
-          >
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={onClose}
-              className="flex-1"
-            >
-              {t.cancel}
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: '4px',
+            padding: isMobile ? '16px 20px 28px' : '16px 24px',
+            borderTop: '1px solid rgba(0,0,0,0.06)',
+            backgroundColor: '#FAFAFA',
+            flexShrink: 0,
+          }}>
+            <button
+              type="button"
               onClick={handleSave}
-              className="flex-1"
+              style={{
+                width: '100%', height: '52px', borderRadius: '12px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
+                color: '#ffffff', fontSize: '15px', fontWeight: 600,
+                cursor: 'pointer', letterSpacing: '-0.01em',
+                boxShadow: '0 2px 12px rgba(99,102,241,0.35)',
+                transition: 'opacity 100ms',
+                fontFamily: 'inherit',
+              }}
+              onMouseDown={e  => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'; }}
+              onMouseUp={e    => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
             >
               {transaction.id ? t.update_transaction : t.add_transaction}
-            </Button>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                width: '100%', height: '40px',
+                border: 'none', background: 'none',
+                color: '#9CA3AF', fontSize: '14px', fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              {t.cancel}
+            </button>
           </div>
         </motion.div>
       </div>
     </>,
     portalEl,
-  );
-}
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-function ChevronIcon() {
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position:      'absolute',
-        top: 0, right: '12px', bottom: 0,
-        display:       'flex',
-        alignItems:    'center',
-        pointerEvents: 'none',
-      }}
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#9CA3AF" strokeWidth="1.5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 7l3 3 3-3" />
-      </svg>
-    </div>
   );
 }

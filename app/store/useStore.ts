@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, PersistStorage } from 'zustand/middleware';
-import { Transaction, Category, AppSettings, Currency, Language } from '../types';
+import { Transaction, Category, CustomHabit, AppSettings, Currency, Language } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface LoadingState {
@@ -12,6 +12,7 @@ interface LoadingState {
 interface StoreState {
   transactions: Transaction[];
   categories: Category[];
+  customHabits: CustomHabit[];
   settings: AppSettings;
   loading: LoadingState;
   addTransaction: (transaction: Transaction) => void;
@@ -20,6 +21,10 @@ interface StoreState {
   addCategory: (category: Category) => void;
   updateCategory: (category: Category) => void;
   deleteCategory: (id: string) => void;
+  addCustomHabit: (habit: CustomHabit) => void;
+  updateCustomHabit: (habit: CustomHabit) => void;
+  archiveCustomHabit: (id: string) => void;
+  deleteCustomHabit: (id: string) => void;
   updateSettings: (settings: AppSettings) => void;
   importData: (data: { transactions: Transaction[], categories: Category[], settings: AppSettings }) => void;
   clearAllData: () => void;
@@ -77,15 +82,40 @@ const defaultCategories: Category[] = [
   }
 ];
 
+// ─── Cloud sync points (for future Supabase integration) ─────────────────────
+//
+// Each action below maps directly to a Supabase operation.
+// The sync pattern will be: write to Zustand/localStorage first (optimistic),
+// then call the corresponding async sync helper from lib/sync/.
+//
+// Action                → Supabase table / operation
+// ─────────────────────────────────────────────────────────────────────────────
+// addTransaction        → INSERT public.transactions        (upsert by UUID id)
+// updateTransaction     → UPDATE public.transactions        (match by id)
+// deleteTransaction     → DELETE public.transactions        (match by id)
+// addCustomHabit        → INSERT public.custom_habits       (upsert by UUID id)
+// updateCustomHabit     → UPDATE public.custom_habits       (match by id)
+// archiveCustomHabit    → UPDATE public.custom_habits       (set archived=true)
+// deleteCustomHabit     → DELETE public.custom_habits       (match by id)
+// updateSettings        → UPSERT public.user_settings       (match by user_id)
+//
+// All UUIDs are already assigned client-side (uuidv4), making every write
+// idempotent — safe to retry on reconnect without duplicates.
+//
+// Future entry point: wrap each set() call with a queueSync(action, payload)
+// call inside lib/sync/syncQueue.ts. No action signatures need to change.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const useStore = create<StoreState>()(
   persist(
     (set) => ({
       transactions: [],
       categories: defaultCategories,
+      customHabits: [],
       settings: {
-        currency: Currency.USD,
-        userName: 'User',
-        language: Language.EN,
+        currency: Currency.MXN,
+        userName: 'Usuario',
+        language: Language.ES,
       },
       loading: {
         isLoading: false,
@@ -119,6 +149,26 @@ export const useStore = create<StoreState>()(
       deleteCategory: (id) =>
         set((state) => ({
           categories: state.categories.filter((category) => category.id !== id),
+        })),
+      addCustomHabit: (habit) =>
+        set((state) => ({
+          customHabits: [...state.customHabits, habit],
+        })),
+      updateCustomHabit: (updated) =>
+        set((state) => ({
+          customHabits: state.customHabits.map((h) =>
+            h.id === updated.id ? updated : h
+          ),
+        })),
+      archiveCustomHabit: (id) =>
+        set((state) => ({
+          customHabits: state.customHabits.map((h) =>
+            h.id === id ? { ...h, archived: true } : h
+          ),
+        })),
+      deleteCustomHabit: (id) =>
+        set((state) => ({
+          customHabits: state.customHabits.filter((h) => h.id !== id),
         })),
       updateSettings: (settings) => set({ settings }),
       importData: (data) => set({ transactions: data.transactions, categories: data.categories, settings: data.settings }),

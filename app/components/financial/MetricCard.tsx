@@ -41,12 +41,10 @@ function formatValue(value: number | string): string {
 export function MetricCard({
   label,
   value,
-  currency,
   color = 'neutral',
   icon,
   subtext,
   isLoading = false,
-  glass = false,
   className,
 }: MetricCardProps) {
   if (isLoading) {

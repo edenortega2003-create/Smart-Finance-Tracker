@@ -38,7 +38,6 @@ const mxnFormatter = new Intl.NumberFormat('es-MX', {
 
 export function AmountDisplay({
   amount,
-  currency,   // kept for API compatibility; display uses MXN internally
   color = 'auto',
   size = 'md',
   showSign = false,

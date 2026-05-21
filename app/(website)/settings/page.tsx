@@ -236,7 +236,7 @@ export default function SettingsPage() {
         <SettingsCard>
           <SectionHeader icon={<User size={15} />} title="Perfil" />
           <div style={{ marginBottom: '16px' }}>
-            <FieldLabel htmlFor="userName">{t.user_name || 'Nombre de usuario'}</FieldLabel>
+            <FieldLabel htmlFor="userName">Nombre de usuario</FieldLabel>
             <input
               id="userName"
               type="text"
@@ -251,16 +251,16 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button type="button" onClick={handleSave} style={btnGreen}>
               <Save size={14} aria-hidden="true" />
-              {t.save_settings || 'Guardar'}
+              Guardar ajustes
             </button>
           </div>
         </SettingsCard>
 
         {/* ── Preferences ────────────────────────────────────── */}
         <SettingsCard>
-          <SectionHeader icon={<Settings2 size={15} />} title={t.user_preferences || 'Preferencias'} />
+          <SectionHeader icon={<Settings2 size={15} />} title="Preferencias" />
           <div style={{ marginBottom: '16px' }}>
-            <FieldLabel htmlFor="currency">{t.currency || 'Moneda'}</FieldLabel>
+            <FieldLabel htmlFor="currency">Moneda</FieldLabel>
             <select
               id="currency"
               name="currency"
@@ -274,7 +274,7 @@ export default function SettingsPage() {
             </select>
           </div>
           <div style={{ marginBottom: '16px' }}>
-            <FieldLabel htmlFor="language">{t.language || 'Idioma'}</FieldLabel>
+            <FieldLabel htmlFor="language">Idioma</FieldLabel>
             <select
               id="language"
               name="language"
@@ -290,21 +290,24 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button type="button" onClick={handleSave} style={btnGreen}>
               <Save size={14} aria-hidden="true" />
-              {t.save_settings || 'Guardar'}
+              Guardar ajustes
             </button>
           </div>
         </SettingsCard>
 
         {/* ── Data management ────────────────────────────────── */}
         <SettingsCard>
-          <SectionHeader icon={<Database size={15} />} title={t.data_management || 'Datos'} />
+          <SectionHeader icon={<Database size={15} />} title="Gestión de datos" />
+          <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 4px', lineHeight: 1.55 }}>
+            Descarga una copia de seguridad de tus datos en formato JSON.
+          </p>
           <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px', lineHeight: 1.55 }}>
-            Exporta tus transacciones como JSON o importa datos de una copia anterior de MentHabit.
+            Puedes importar una copia anterior para restaurar tus datos.
           </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button type="button" onClick={handleExport} style={btnGhost}>
               <Download size={14} aria-hidden="true" />
-              {t.export_data || 'Exportar'}
+              Exportar datos
             </button>
             <input
               type="file"
@@ -315,7 +318,7 @@ export default function SettingsPage() {
             />
             <label htmlFor="import-file" style={btnIndigo}>
               <Upload size={14} aria-hidden="true" />
-              {t.import_data || 'Importar'}
+              Importar datos
             </label>
           </div>
         </SettingsCard>
@@ -328,7 +331,7 @@ export default function SettingsPage() {
           </p>
           <button type="button" onClick={() => setIsDeleteModalOpen(true)} style={btnDangerOutline}>
             <AlertTriangle size={14} aria-hidden="true" />
-            {t.delete_all_data || 'Eliminar todos los datos'}
+            Eliminar todos los datos
           </button>
         </SettingsCard>
 
@@ -389,10 +392,10 @@ export default function SettingsPage() {
               id="delete-modal-title"
               style={{ fontSize: '16px', fontWeight: 700, color: '#111827', margin: '0 0 8px', letterSpacing: '-0.01em' }}
             >
-              {t.confirm_delete_all_data || 'Confirmar eliminación'}
+              Confirmar eliminación
             </h2>
             <p style={{ fontSize: '13.5px', color: '#6B7280', lineHeight: 1.55, margin: '0 0 20px' }}>
-              {t.delete_all_data_message}
+              Esta acción eliminará permanentemente todas tus transacciones, categorías y configuración. No se puede deshacer.
             </p>
             {/* Confirmation checkbox */}
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', marginBottom: '20px' }}>
@@ -403,7 +406,7 @@ export default function SettingsPage() {
                 style={{ marginTop: '2px', accentColor: '#EF4444', width: '16px', height: '16px', flexShrink: 0, cursor: 'pointer' }}
               />
               <span style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5 }}>
-                {t.i_understand_and_wish_to_continue}
+                Entiendo y deseo continuar
               </span>
             </label>
             {/* Actions */}
@@ -418,7 +421,7 @@ export default function SettingsPage() {
                   fontWeight: 600, fontSize: '13.5px', fontFamily: 'inherit',
                 }}
               >
-                {t.cancel || 'Cancelar'}
+                Cancelar
               </button>
               <button
                 type="button"
@@ -430,7 +433,7 @@ export default function SettingsPage() {
                   fontFamily: 'inherit', boxShadow: '0 3px 10px rgba(239,68,68,0.28)',
                 }}
               >
-                {t.delete_all_data || 'Eliminar'}
+                Eliminar
               </button>
             </div>
           </div>

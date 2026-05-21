@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '../../store/useStore';
-import type { ExpenseClassification } from '../../types';
+import type { ExpenseClassification, CustomHabit } from '../../types';
 
 /* ─── Habit ID mapping (Registro ids → HabitGroupId) ──────────────── */
 function toHabitId(catId: string): string {
@@ -60,26 +60,28 @@ const METHODS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Otro'];
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
-function nowTimeStr(): string {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 /* ─── Page ─────────────────────────────────────────────────────────── */
 export default function RegistroPage() {
-  const addTransaction = useStore((s) => s.addTransaction);
+  const { addTransaction, customHabits } = useStore();
 
-  const [amountStr, setAmountStr]       = useState('');
-  const [selectedCat, setSelectedCat]   = useState<string | null>(null);
-  const [method, setMethod]             = useState<string>('Efectivo');
-  const [note, setNote]                 = useState('');
-  const [date, setDate]                 = useState(todayStr);
-  const [time, setTime]                 = useState(nowTimeStr);
-  const [showActions, setShowActions]   = useState(false);
-  const [savedCat, setSavedCat]         = useState<(typeof CATEGORIES)[number] | null>(null);
+  const [amountStr, setAmountStr]               = useState('');
+  const [selectedCat, setSelectedCat]           = useState<string | null>(null);
+  const [selectedCustomHabit, setSelectedCustomHabit] = useState<CustomHabit | null>(null);
+  const [method, setMethod]                     = useState<string>('Efectivo');
+  const [note, setNote]                         = useState('');
+  const [date, setDate]                         = useState(todayStr);
+  const [showActions, setShowActions]           = useState(false);
+  const [savedCat, setSavedCat]                 = useState<(typeof CATEGORIES)[number] | null>(null);
+  const [savedCustomHabit, setSavedCustomHabit] = useState<CustomHabit | null>(null);
+
+  const expenseCustomHabits = useMemo(
+    () => customHabits.filter(h => !h.archived && (h.type === 'expense' || h.type === 'both')),
+    [customHabits],
+  );
 
   const amount  = parseFloat(amountStr) || 0;
-  const canSave = amount > 0 && selectedCat !== null;
+  const canSave = amount > 0 && (selectedCat !== null || selectedCustomHabit !== null);
 
   const handleAmountKey = useCallback((key: string) => {
     if (key === 'del') {
@@ -100,28 +102,46 @@ export default function RegistroPage() {
 
   const handleSave = () => {
     if (!canSave) return;
-    const cat        = CATEGORIES.find(c => c.id === selectedCat)!;
-    const habitId    = toHabitId(cat.id);
-    const classification = smartClassify(habitId, amount);
-    addTransaction({
-      id:             uuidv4(),
-      date,
-      amount,
-      type:           'expense',
-      concept:        cat.concept + (note ? ` — ${note}` : ''),
-      classification,
-      regularity:     'eventual',
-      notes:          note || undefined,
-      habitCategory:  habitId,
-    });
-    // capture before reset so post-save panel can display it
-    setSavedCat(cat);
+
+    if (selectedCustomHabit) {
+      addTransaction({
+        id:            uuidv4(),
+        date,
+        amount,
+        type:          'expense',
+        concept:       selectedCustomHabit.label + (note ? ` — ${note}` : ''),
+        classification: autoClassify(amount),
+        regularity:    'eventual',
+        notes:         note || undefined,
+        habitCategory: selectedCustomHabit.id,
+      });
+      setSavedCustomHabit(selectedCustomHabit);
+      setSavedCat(null);
+    } else {
+      const cat        = CATEGORIES.find(c => c.id === selectedCat)!;
+      const habitId    = toHabitId(cat.id);
+      const classification = smartClassify(habitId, amount);
+      addTransaction({
+        id:            uuidv4(),
+        date,
+        amount,
+        type:          'expense',
+        concept:       cat.concept + (note ? ` — ${note}` : ''),
+        classification,
+        regularity:    'eventual',
+        notes:         note || undefined,
+        habitCategory: habitId,
+      });
+      setSavedCat(cat);
+      setSavedCustomHabit(null);
+    }
+
     // reset form
     setAmountStr('');
     setSelectedCat(null);
+    setSelectedCustomHabit(null);
     setNote('');
     setDate(todayStr());
-    setTime(nowTimeStr());
     // show action panel
     setShowActions(true);
     setTimeout(() => setShowActions(false), 6000);
@@ -242,7 +262,10 @@ export default function RegistroPage() {
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => setSelectedCat(active ? null : cat.id)}
+                onClick={() => {
+                  setSelectedCustomHabit(null);
+                  setSelectedCat(active ? null : cat.id);
+                }}
                 style={{
                   display:       'flex',
                   flexDirection: 'column',
@@ -268,6 +291,51 @@ export default function RegistroPage() {
             );
           })}
         </div>
+
+        {/* Custom habits (shown only if any exist) */}
+        {expenseCustomHabits.length > 0 && (
+          <div style={{ marginTop: '12px' }}>
+            <p style={{ fontSize: '11px', fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Mis hábitos
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              {expenseCustomHabits.map(h => {
+                const active = selectedCustomHabit?.id === h.id;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCat(null);
+                      setSelectedCustomHabit(active ? null : h);
+                    }}
+                    style={{
+                      display:       'flex',
+                      flexDirection: 'column',
+                      alignItems:    'center',
+                      justifyContent:'center',
+                      gap:           '6px',
+                      padding:       '12px 6px',
+                      borderRadius:  '14px',
+                      border:        active ? `2px solid ${h.accentColor}` : '2px solid transparent',
+                      background:    active ? h.bgColor : '#ffffff',
+                      cursor:        'pointer',
+                      boxShadow:     active ? `0 4px 16px ${h.accentColor}40` : '0 1px 4px rgba(0,0,0,0.07)',
+                      transition:    'all 120ms ease',
+                    }}
+                    aria-pressed={active}
+                    aria-label={h.label}
+                  >
+                    <span style={{ fontSize: '26px', lineHeight: 1 }}>{h.emoji}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: active ? h.accentColor : '#6B7280', lineHeight: 1.2, textAlign: 'center' }}>
+                      {h.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Payment method ───────────────────────────────────────── */}
@@ -332,58 +400,31 @@ export default function RegistroPage() {
         />
       </div>
 
-      {/* ── Date / Time ──────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
-        <div>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: '#6B7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
-            Fecha
-          </p>
-          <input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            style={{
-              width:        '100%',
-              height:       '44px',
-              borderRadius: '12px',
-              border:       '1.5px solid #E5E7EB',
-              padding:      '0 12px',
-              fontSize:     '14px',
-              color:        '#111827',
-              background:   '#ffffff',
-              outline:      'none',
-              boxSizing:    'border-box',
-              fontFamily:   'inherit',
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#10B981')}
-            onBlur={e  => (e.currentTarget.style.borderColor = '#E5E7EB')}
-          />
-        </div>
-        <div>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: '#6B7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
-            Hora
-          </p>
-          <input
-            type="time"
-            value={time}
-            onChange={e => setTime(e.target.value)}
-            style={{
-              width:        '100%',
-              height:       '44px',
-              borderRadius: '12px',
-              border:       '1.5px solid #E5E7EB',
-              padding:      '0 12px',
-              fontSize:     '14px',
-              color:        '#111827',
-              background:   '#ffffff',
-              outline:      'none',
-              boxSizing:    'border-box',
-              fontFamily:   'inherit',
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#10B981')}
-            onBlur={e  => (e.currentTarget.style.borderColor = '#E5E7EB')}
-          />
-        </div>
+      {/* ── Date ─────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: '28px' }}>
+        <p style={{ fontSize: '12px', fontWeight: 600, color: '#6B7280', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
+          Fecha
+        </p>
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          style={{
+            width:        '100%',
+            height:       '44px',
+            borderRadius: '12px',
+            border:       '1.5px solid #E5E7EB',
+            padding:      '0 12px',
+            fontSize:     '14px',
+            color:        '#111827',
+            background:   '#ffffff',
+            outline:      'none',
+            boxSizing:    'border-box',
+            fontFamily:   'inherit',
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = '#10B981')}
+          onBlur={e  => (e.currentTarget.style.borderColor = '#E5E7EB')}
+        />
       </div>
 
       {/* ── Save button ───────────────────────────────────────────── */}
@@ -452,6 +493,8 @@ export default function RegistroPage() {
               <p style={{ margin: 0, fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
                 {savedCat
                   ? `${savedCat.emoji} Añadido a ${savedCat.label}`
+                  : savedCustomHabit
+                  ? `${savedCustomHabit.emoji} Añadido a ${savedCustomHabit.label}`
                   : 'Gasto guardado correctamente'}
               </p>
             </div>

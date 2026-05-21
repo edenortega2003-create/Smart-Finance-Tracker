@@ -325,6 +325,20 @@ body {
   height: 66px !important;
 }
 
+/* Safe-area padding for notched phones (iPhone X+) */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .MuiBottomNavigation-root {
+    padding-bottom: env(safe-area-inset-bottom) !important;
+    height: calc(66px + env(safe-area-inset-bottom)) !important;
+  }
+  /* Ensure main content doesn't slide under the taller nav */
+  @media (max-width: 600px) {
+    .MuiContainer-root {
+      padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+    }
+  }
+}
+
 .MuiBottomNavigationAction-root {
   color: #A1A1AA !important;
   min-width: 0 !important;

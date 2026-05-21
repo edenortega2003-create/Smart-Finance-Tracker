@@ -11,12 +11,12 @@
   "clear_filters": "Clear Filters",
   "apply_filters": "Apply Filters",
   "transactions": "Transactions",
-  "user_name": "User Name",
-  "currency": "Currency",
-  "language": "Language",
-  "save_settings": "Save Settings",
-  "export_data": "Export Data",
-  "import_data": "Import Data",
+  "user_name": "Nombre de usuario",
+  "currency": "Moneda",
+  "language": "Idioma",
+  "save_settings": "Guardar ajustes",
+  "export_data": "Exportar datos",
+  "import_data": "Importar datos",
   "date": "Date",
   "amount": "Amount",
   "type": "Type",
@@ -95,6 +95,6 @@
   "exporting": "Exporting data...",
   "please_wait": "Please wait...",
   "back": "Back",
-  "data_management": "Data Management",
-  "user_preferences": "User Preferences"
+  "data_management": "Gestión de datos",
+  "user_preferences": "Preferencias"
 }

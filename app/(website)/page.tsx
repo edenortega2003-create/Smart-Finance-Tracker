@@ -10,6 +10,7 @@ import {
 import {
   TrendingUp, TrendingDown, Wallet, BarChart2, Tag, Coffee, Zap,
   Plus, ArrowLeftRight, Settings,
+  CalendarDays, AlertTriangle, Sparkles, Lightbulb, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '../hooks/useTranslation';
@@ -24,6 +25,7 @@ import type { ExpenseClassification, IncomeClassification } from '../types';
 import { MetricCard } from '../components/financial/MetricCard';
 import { Progress } from '../components/ui/Progress';
 import { computeHabitStats } from '../utils/habitGroups';
+import { computeMonthlyInsights, MonthlyInsights } from '../utils/monthlyInsights';
 
 // Inline style values — guaranteed to render regardless of Tailwind scanning
 const INCOME_COLOR  = '#10B981';
@@ -70,69 +72,280 @@ const quickActions = [
   { label: 'Ajustes',     tileClass: 'qa-amber',  iconClass: 'qa-icon-amber',  icon: <Settings       size={20} />, isFab: false, href: '/settings'      },
 ] as const;
 
+// ─── Monthly Insights Section ─────────────────────────────────────────────────
+
+function InsightRow({
+  icon,
+  text,
+  variant,
+}: {
+  icon: React.ReactNode;
+  text: string;
+  variant: 'positive' | 'warning' | 'info' | 'neutral';
+}) {
+  const colors = {
+    positive: { bg: 'rgba(16,185,129,0.07)', border: 'rgba(16,185,129,0.18)', color: '#065F46', icon: '#10B981' },
+    warning:  { bg: 'rgba(245,158,11,0.07)', border: 'rgba(245,158,11,0.20)', color: '#78350F', icon: '#D97706' },
+    info:     { bg: 'rgba(99,102,241,0.07)', border: 'rgba(99,102,241,0.18)', color: '#312E81', icon: '#6366F1' },
+    neutral:  { bg: 'rgba(0,0,0,0.03)',      border: 'rgba(0,0,0,0.08)',      color: '#374151', icon: '#6B7280' },
+  };
+  const c = colors[variant];
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: '10px',
+      padding: '10px 12px', borderRadius: '12px',
+      backgroundColor: c.bg, border: `1px solid ${c.border}`,
+    }}>
+      <span style={{ color: c.icon, flexShrink: 0, marginTop: '1px' }}>{icon}</span>
+      <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.55, color: c.color }}>{text}</p>
+    </div>
+  );
+}
+
+function MonthlyInsightsSection({
+  insights,
+  open,
+  onToggle,
+  fmt,
+}: {
+  insights: MonthlyInsights;
+  open: boolean;
+  onToggle: () => void;
+  fmt: Intl.NumberFormat;
+}) {
+  const balance    = insights.balance;
+  const balancePos = balance >= 0;
+
+  return (
+    <section style={{ marginBottom: '32px' }} aria-label="Corte mensual">
+
+      {/* Header — always visible */}
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', background: 'none', border: 'none', padding: 0,
+          cursor: 'pointer', marginBottom: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <CalendarDays size={13} style={{ color: '#6366F1' }} aria-hidden="true" />
+          <p style={{ fontSize: '13px', fontWeight: 600, color: '#134e4a', margin: 0 }}>
+            Corte mensual
+          </p>
+          <span style={{
+            fontSize: '11px', fontWeight: 600,
+            backgroundColor: 'rgba(99,102,241,0.10)',
+            color: '#4F46E5', padding: '1px 8px', borderRadius: '999px',
+          }}>
+            {insights.monthLabel}
+          </span>
+        </div>
+        <span style={{ color: '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '20px',
+          border: '1px solid rgba(99,102,241,0.12)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+          overflow: 'hidden',
+        }}>
+
+          {/* Balance mini-hero */}
+          <div style={{
+            padding: '16px 18px',
+            background: balancePos
+              ? 'linear-gradient(135deg, rgba(16,185,129,0.07) 0%, rgba(20,184,166,0.05) 100%)'
+              : 'linear-gradient(135deg, rgba(239,68,68,0.06) 0%, rgba(244,63,94,0.04) 100%)',
+            borderBottom: '1px solid rgba(0,0,0,0.05)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+
+              {/* Income pill */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ingresos</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmt.format(insights.incomeTotal)}
+                </span>
+              </div>
+
+              {/* vs separator */}
+              <span style={{ fontSize: '12px', color: '#D1D5DB', fontWeight: 600 }}>vs</span>
+
+              {/* Expense pill */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gastos</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#EF4444', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmt.format(insights.expenseTotal)}
+                </span>
+              </div>
+
+              {/* Balance result */}
+              <div style={{
+                marginLeft: 'auto', textAlign: 'right',
+                padding: '6px 12px', borderRadius: '10px',
+                backgroundColor: balancePos ? 'rgba(16,185,129,0.10)' : 'rgba(239,68,68,0.09)',
+              }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block' }}>Balance</span>
+                <span style={{
+                  fontSize: '18px', fontWeight: 700,
+                  color: balancePos ? '#059669' : '#DC2626',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {balancePos ? '+' : '−'}{fmt.format(Math.abs(balance))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Insight rows */}
+          <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+            {/* Positive signal */}
+            {insights.positiveSignal && (
+              <InsightRow
+                icon={<Sparkles size={14} />}
+                text={insights.positiveSignal}
+                variant="positive"
+              />
+            )}
+
+            {/* Warnings */}
+            {insights.warnings.map((w, i) => (
+              <InsightRow
+                key={i}
+                icon={<AlertTriangle size={14} />}
+                text={w}
+                variant="warning"
+              />
+            ))}
+
+            {/* Recommendation */}
+            {insights.recommendation && (
+              <InsightRow
+                icon={<Lightbulb size={14} />}
+                text={insights.recommendation}
+                variant="info"
+              />
+            )}
+
+            {/* Rising habit — only if not already covered by warnings */}
+            {insights.risingHabit && insights.risingHabit.pct < 20 && (
+              <InsightRow
+                icon={<span style={{ fontSize: '14px' }}>{insights.risingHabit.emoji}</span>}
+                text={`${insights.risingHabit.label} subió un ${insights.risingHabit.pct}% vs el mes anterior.`}
+                variant="neutral"
+              />
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            padding: '10px 16px',
+            borderTop: '1px solid rgba(0,0,0,0.05)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
+              {insights.txCount} {insights.txCount === 1 ? 'movimiento' : 'movimientos'} este mes
+            </span>
+            <Link
+              href="/categories"
+              style={{ fontSize: '12px', fontWeight: 600, color: '#6366F1', textDecoration: 'none' }}
+            >
+              Ver hábitos →
+            </Link>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const CHART_MONTHS = [
+  { value: '1',  label: 'January'   }, { value: '2',  label: 'February'  },
+  { value: '3',  label: 'March'     }, { value: '4',  label: 'April'     },
+  { value: '5',  label: 'May'       }, { value: '6',  label: 'June'      },
+  { value: '7',  label: 'July'      }, { value: '8',  label: 'August'    },
+  { value: '9',  label: 'September' }, { value: '10', label: 'October'   },
+  { value: '11', label: 'November'  }, { value: '12', label: 'December'  },
+];
+
 export default function HomePage() {
-  const { transactions } = useStore();
+  const { transactions, customHabits, settings } = useStore();
   const [selectedMonthlyYear, setSelectedMonthlyYear] = useState<string>(
     new Date().getFullYear().toString(),
   );
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('today');
-  const { t, loading } = useTranslation();
+  const [insightsOpen, setInsightsOpen]     = useState(true);
+  const { loading } = useTranslation();
 
-  // ── Global totals — unchanged logic ───────────────────────────────────────
-  const totalIncome   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const totalBalance  = totalIncome - totalExpenses;
+  // ── Currency formatter — respects user settings ────────────────────────────
+  const currFmt = useMemo(() => {
+    const code = settings.currency.split(' ')[0]; // 'MXN $' → 'MXN'
+    try {
+      return new Intl.NumberFormat('es-MX', {
+        style: 'currency', currency: code,
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+      });
+    } catch {
+      return mxnFmt;
+    }
+  }, [settings.currency]);
 
-  const allClassTotals = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((acc: Record<string, number>, t) => {
-      const key = t.classification ?? 'otro';
-      acc[key] = (acc[key] || 0) + t.amount;
-      return acc;
-    }, {});
-  const topOverallKey   = Object.entries(allClassTotals).sort(([, a], [, b]) => b - a)[0]?.[0] ?? null;
-  const topOverallLabel = topOverallKey
-    ? getClassificationLabel(topOverallKey as ExpenseClassification | IncomeClassification, 'expense')
-    : '—';
+  // ── Global totals ──────────────────────────────────────────────────────────
+  const { totalIncome, totalExpenses, totalBalance } = useMemo(() => {
+    const totalIncome   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    return { totalIncome, totalExpenses, totalBalance: totalIncome - totalExpenses };
+  }, [transactions]);
 
-  // ── Chart data — unchanged logic ───────────────────────────────────────────
-  const years = Array.from(
-    new Set(transactions.map(t => new Date(t.date).getFullYear().toString())),
-  ).sort();
+  const topOverallLabel = useMemo(() => {
+    const allClassTotals = transactions
+      .filter(t => t.type === 'expense')
+      .reduce((acc: Record<string, number>, t) => {
+        const key = t.classification ?? 'otro';
+        acc[key] = (acc[key] || 0) + t.amount;
+        return acc;
+      }, {});
+    const topKey = Object.entries(allClassTotals).sort(([, a], [, b]) => b - a)[0]?.[0] ?? null;
+    return topKey
+      ? getClassificationLabel(topKey as ExpenseClassification | IncomeClassification, 'expense')
+      : '—';
+  }, [transactions]);
 
-  const months = [
-    { value: '1',  label: 'January'   }, { value: '2',  label: 'February'  },
-    { value: '3',  label: 'March'     }, { value: '4',  label: 'April'     },
-    { value: '5',  label: 'May'       }, { value: '6',  label: 'June'      },
-    { value: '7',  label: 'July'      }, { value: '8',  label: 'August'    },
-    { value: '9',  label: 'September' }, { value: '10', label: 'October'   },
-    { value: '11', label: 'November'  }, { value: '12', label: 'December'  },
-  ];
+  // ── Chart data ─────────────────────────────────────────────────────────────
+  const years = useMemo(
+    () => Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))).sort(),
+    [transactions],
+  );
 
-  const yearlyData = years.map(year => ({
+  const yearlyData = useMemo(() => years.map(year => ({
     year,
     income:  transactions.filter(t => new Date(t.date).getFullYear().toString() === year && t.type === 'income').reduce((s, t) => s + t.amount, 0),
     expense: transactions.filter(t => new Date(t.date).getFullYear().toString() === year && t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-  }));
+  })), [transactions, years]);
 
-  const monthlyData = months.map(m => ({
+  const monthlyData = useMemo(() => CHART_MONTHS.map(m => ({
     month: m.label.slice(0, 3),
     income:  transactions.filter(t => new Date(t.date).getMonth() === (parseInt(m.value, 10) - 1) && new Date(t.date).getFullYear().toString() === selectedMonthlyYear && t.type === 'income').reduce((s, t) => s + t.amount, 0),
     expense: transactions.filter(t => new Date(t.date).getMonth() === (parseInt(m.value, 10) - 1) && new Date(t.date).getFullYear().toString() === selectedMonthlyYear && t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-  }));
+  })), [transactions, selectedMonthlyYear]);
 
-  const categorySpending = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((acc: Record<string, number>, t) => {
-      const key = t.concept?.trim() || t.category?.name || '(sin concepto)';
-      acc[key] = (acc[key] || 0) + t.amount;
-      return acc;
-    }, {});
-
-  const categoryChartData = Object.keys(categorySpending).map(category => ({
-    category,
-    spending: categorySpending[category],
-  }));
+  const categoryChartData = useMemo(() => {
+    const spending = transactions
+      .filter(t => t.type === 'expense')
+      .reduce((acc: Record<string, number>, t) => {
+        const key = t.concept?.trim() || t.category?.name || '(sin concepto)';
+        acc[key] = (acc[key] || 0) + t.amount;
+        return acc;
+      }, {});
+    return Object.keys(spending).map(category => ({ category, spending: spending[category] }));
+  }, [transactions]);
 
   // ── Habit stats (this month, top 4 active groups) ─────────────────────────
   const { topHabits, maxHabitTotal } = useMemo(() => {
@@ -140,6 +353,12 @@ export default function HomePage() {
     const active = stats.filter(s => s.count > 0).slice(0, 4);
     return { topHabits: active, maxHabitTotal: active[0]?.monthlyTotal ?? 0 };
   }, [transactions]);
+
+  // ── Monthly insights ────────────────────────────────────────────────────────
+  const monthlyInsights = useMemo(
+    () => computeMonthlyInsights(transactions, customHabits),
+    [transactions, customHabits],
+  );
 
   // ── Period metrics — unchanged logic ───────────────────────────────────────
   const periodMetrics = getPeriodMetrics(transactions, selectedPeriod);
@@ -242,7 +461,7 @@ export default function HomePage() {
             color: totalBalance < 0 ? '#FDA4AF' : '#ffffff',
             margin: 0,
           }}>
-            {mxnFmt.format(totalBalance)}
+            {currFmt.format(totalBalance)}
           </p>
           {totalBalance < 0 && (
             <p style={{ fontSize: '12px', color: '#FDA4AF', marginTop: '6px', fontWeight: 500 }}>En déficit</p>
@@ -255,7 +474,7 @@ export default function HomePage() {
               <div>
                 <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', fontWeight: 500, lineHeight: 1, marginBottom: '2px', margin: 0 }}>Ingresos</p>
                 <p style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums', lineHeight: 1, margin: 0 }}>
-                  {mxnFmt.format(totalIncome)}
+                  {currFmt.format(totalIncome)}
                 </p>
               </div>
             </div>
@@ -264,7 +483,7 @@ export default function HomePage() {
               <div>
                 <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', fontWeight: 500, lineHeight: 1, marginBottom: '2px', margin: 0 }}>Gastos</p>
                 <p style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums', lineHeight: 1, margin: 0 }}>
-                  {mxnFmt.format(totalExpenses)}
+                  {currFmt.format(totalExpenses)}
                 </p>
               </div>
             </div>
@@ -386,7 +605,7 @@ export default function HomePage() {
                         color: s.meta.accentColor,
                         fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
                       }}>
-                        {mxnFmt.format(s.monthlyTotal)}
+                        {currFmt.format(s.monthlyTotal)}
                       </p>
                       <p style={{ margin: 0, fontSize: '10px', color: '#9CA3AF', marginTop: '1px' }}>
                         {s.count} {s.count === 1 ? 'mov.' : 'movs.'}
@@ -411,6 +630,16 @@ export default function HomePage() {
             })}
           </div>
         </section>
+      )}
+
+      {/* ══ CORTE MENSUAL ═════════════════════════════════════════════════════ */}
+      {monthlyInsights && (
+        <MonthlyInsightsSection
+          insights={monthlyInsights}
+          open={insightsOpen}
+          onToggle={() => setInsightsOpen(v => !v)}
+          fmt={currFmt}
+        />
       )}
 
       {/* ══ RESUMEN DEL PERIODO ════════════════════════════════════════════════ */}
@@ -496,7 +725,7 @@ export default function HomePage() {
           <LineChart data={yearlyData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" strokeOpacity={0.8} />
             <XAxis dataKey="year"  tick={{ fontSize: 11, fill: '#A8A29E' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => mxnFmt.format(v)} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => currFmt.format(v)} axisLine={false} tickLine={false} />
             <Tooltip content={<ChartTooltip />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
             <Line type="monotone" dataKey="income"  name="Ingresos" stroke={INCOME_COLOR}  strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
@@ -523,7 +752,7 @@ export default function HomePage() {
           <LineChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" strokeOpacity={0.8} />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#A8A29E' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => mxnFmt.format(v)} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => currFmt.format(v)} axisLine={false} tickLine={false} />
             <Tooltip content={<ChartTooltip />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
             <Line type="monotone" dataKey="income"  name="Ingresos" stroke={INCOME_COLOR}  strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
@@ -541,7 +770,7 @@ export default function HomePage() {
           <BarChart data={categoryChartData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" strokeOpacity={0.8} />
             <XAxis dataKey="category" tick={{ fontSize: 11, fill: '#A8A29E' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => mxnFmt.format(v)} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#A8A29E' }} width={62} tickFormatter={v => currFmt.format(v)} axisLine={false} tickLine={false} />
             <Tooltip content={<ChartTooltip />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
             <Bar dataKey="spending" name="Gasto" fill={EXPENSE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={48} />

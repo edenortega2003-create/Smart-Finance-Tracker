@@ -14,9 +14,9 @@
   "user_name": "Nombre de Usuario",
   "currency": "Moneda",
   "language": "Idioma",
-  "save_settings": "Guardar Configuración",
-  "export_data": "Exportar Datos",
-  "import_data": "Importar Datos",
+  "save_settings": "Guardar ajustes",
+  "export_data": "Exportar datos",
+  "import_data": "Importar datos",
   "date": "Fecha",
   "amount": "Cantidad",
   "type": "Tipo",
@@ -95,6 +95,6 @@
   "exporting": "Exportando datos...",
   "please_wait": "Por favor espere...",
   "back": "Atrás",
-  "data_management": "Gestión de Datos",
-  "user_preferences": "Preferencias de Usuario"
+  "data_management": "Gestión de datos",
+  "user_preferences": "Preferencias"
 }

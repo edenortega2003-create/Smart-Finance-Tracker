@@ -1,7 +1,6 @@
 import { Badge } from '../ui/Badge';
 import { getClassificationLabel } from '../../utils/classifySuggestion';
 import type { ExpenseClassification, IncomeClassification, TransactionType } from '../../types';
-import { cn } from '@/lib/utils';
 
 interface ClassificationBadgeProps {
   classification: ExpenseClassification | IncomeClassification;
