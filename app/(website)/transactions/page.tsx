@@ -117,13 +117,14 @@ function getTemporalBucket(dateStr: string): string {
   return 'Antiguos';
 }
 
-function groupByDate(txs: Transaction[]): { label: string; items: Transaction[] }[] {
-  const groups: { label: string; items: Transaction[] }[] = [];
+function groupByDate(txs: Transaction[]): { id: string; label: string; items: Transaction[] }[] {
+  const groups: { id: string; label: string; items: Transaction[] }[] = [];
   let current = '';
+  let idx = 0;
   for (const tx of txs) {
     const label = getTemporalBucket(tx.date);
     if (label !== current) {
-      groups.push({ label, items: [] });
+      groups.push({ id: `${label}-${idx++}`, label, items: [] });
       current = label;
     }
     groups[groups.length - 1].items.push(tx);
@@ -997,7 +998,7 @@ export default function TransactionsPage() {
 
             {/* Date groups */}
             {dateGroups.map(group => (
-              <div key={group.label} style={{ marginBottom: '8px', minWidth: 0 }}>
+              <div key={group.id} style={{ marginBottom: '8px', minWidth: 0 }}>
 
                 {/* Date section header */}
                 <div style={{

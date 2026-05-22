@@ -1,7 +1,18 @@
+'use client';
+
 import { create } from 'zustand';
 import { persist, PersistStorage } from 'zustand/middleware';
 import { Transaction, Category, CustomHabit, AppSettings, Currency, Language } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+/**
+ * Fire-and-forget cloud sync.
+ * Uses dynamic import so the Supabase browser client is never in the server bundle.
+ * Returns early on SSR (typeof window === 'undefined'), so no server-side execution.
+ */
+function fireSync(fn: () => Promise<unknown>): void {
+  if (typeof window === 'undefined') return;
+  fn().catch(() => {});
+}
 
 interface LoadingState {
   isLoading: boolean;
@@ -15,6 +26,12 @@ interface StoreState {
   customHabits: CustomHabit[];
   settings: AppSettings;
   loading: LoadingState;
+  /* Cloud sync status */
+  isSyncing: boolean;
+  lastSyncAt: string | null;
+  syncError: string | null;
+  currentUserId: string | null;
+  /* Actions */
   addTransaction: (transaction: Transaction) => void;
   updateTransaction: (transaction: Transaction) => void;
   deleteTransaction: (id: string) => void;
@@ -30,6 +47,8 @@ interface StoreState {
   clearAllData: () => void;
   setLoading: (loading: Partial<LoadingState>) => void;
   hideLoading: () => void;
+  setSyncMeta: (meta: { isSyncing?: boolean; lastSyncAt?: string | null; syncError?: string | null }) => void;
+  setCurrentUserId: (id: string | null) => void;
 }
 
 const customStorage: PersistStorage<StoreState> = {
@@ -50,141 +69,153 @@ const customStorage: PersistStorage<StoreState> = {
 };
 
 const defaultCategories: Category[] = [
-  {
-    id: uuidv4(),
-    name: 'Rent',
-    description: 'Monthly rent payment',
-    type: 'expense',
-  },
-  {
-    id: uuidv4(),
-    name: 'Electric Bill',
-    description: 'Monthly electricity bill',
-    type: 'expense',
-  },
-  {
-    id: uuidv4(),
-    name: 'Internet Bill',
-    description: 'Monthly internet bill',
-    type: 'expense',
-  },
-  {
-    id: uuidv4(),
-    name: 'Groceries',
-    description: 'Daily food and household items',
-    type: 'expense',
-  },
-  {
-    id: uuidv4(),
-    name: 'Salary',
-    description: 'Monthly income from job',
-    type: 'income',
-  }
+  { id: uuidv4(), name: 'Rent',           description: 'Monthly rent payment',             type: 'expense' },
+  { id: uuidv4(), name: 'Electric Bill',  description: 'Monthly electricity bill',          type: 'expense' },
+  { id: uuidv4(), name: 'Internet Bill',  description: 'Monthly internet bill',             type: 'expense' },
+  { id: uuidv4(), name: 'Groceries',      description: 'Daily food and household items',    type: 'expense' },
+  { id: uuidv4(), name: 'Salary',         description: 'Monthly income from job',           type: 'income'  },
 ];
 
-// ─── Cloud sync points (for future Supabase integration) ─────────────────────
+// ─── Cloud sync points ────────────────────────────────────────────────────────
 //
-// Each action below maps directly to a Supabase operation.
-// The sync pattern will be: write to Zustand/localStorage first (optimistic),
-// then call the corresponding async sync helper from lib/sync/.
+// Each store action writes to Zustand/localStorage first (optimistic), then calls
+// the corresponding Supabase helper via fireSync (fire-and-forget).
 //
-// Action                → Supabase table / operation
+// Action               → lib/sync helper
 // ─────────────────────────────────────────────────────────────────────────────
-// addTransaction        → INSERT public.transactions        (upsert by UUID id)
-// updateTransaction     → UPDATE public.transactions        (match by id)
-// deleteTransaction     → DELETE public.transactions        (match by id)
-// addCustomHabit        → INSERT public.custom_habits       (upsert by UUID id)
-// updateCustomHabit     → UPDATE public.custom_habits       (match by id)
-// archiveCustomHabit    → UPDATE public.custom_habits       (set archived=true)
-// deleteCustomHabit     → DELETE public.custom_habits       (match by id)
-// updateSettings        → UPSERT public.user_settings       (match by user_id)
+// addTransaction       → upsertTransaction
+// updateTransaction    → upsertTransaction
+// deleteTransaction    → deleteTransactionCloud
+// addCustomHabit       → upsertCustomHabit
+// updateCustomHabit    → upsertCustomHabit
+// archiveCustomHabit   → archiveCustomHabitCloud
+// deleteCustomHabit    → deleteCustomHabitCloud
+// updateSettings       → upsertUserSettings
 //
-// All UUIDs are already assigned client-side (uuidv4), making every write
-// idempotent — safe to retry on reconnect without duplicates.
-//
-// Future entry point: wrap each set() call with a queueSync(action, payload)
-// call inside lib/sync/syncQueue.ts. No action signatures need to change.
+// categories are NOT synced (no cloud table — legacy field, local-only).
+// hydration is handled by hooks/useCloudSync.ts on login.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const useStore = create<StoreState>()(
   persist(
     (set) => ({
-      transactions: [],
-      categories: defaultCategories,
-      customHabits: [],
+      transactions:  [],
+      categories:    defaultCategories,
+      customHabits:  [],
       settings: {
-        currency: Currency.MXN,
-        userName: 'Usuario',
-        language: Language.ES,
+        currency:  Currency.MXN,
+        userName:  'Usuario',
+        language:  Language.ES,
       },
-      loading: {
-        isLoading: false,
+      loading:       { isLoading: false },
+      isSyncing:     false,
+      lastSyncAt:    null,
+      syncError:     null,
+      currentUserId: null,
+
+      addTransaction: (transaction) => {
+        set((state) => ({ transactions: [...state.transactions, transaction] }));
+        fireSync(() =>
+          import('@/lib/sync/transactions').then(m => m.upsertTransaction(transaction))
+        );
       },
-      addTransaction: (transaction) =>
+      updateTransaction: (updatedTransaction) => {
         set((state) => ({
-          transactions: [...state.transactions, transaction],
-        })),
-      updateTransaction: (updatedTransaction) =>
-        set((state) => ({
-          transactions: state.transactions.map((transaction) =>
-            transaction.id === updatedTransaction.id ? updatedTransaction : transaction
+          transactions: state.transactions.map((t) =>
+            t.id === updatedTransaction.id ? updatedTransaction : t
           ),
-        })),
-      deleteTransaction: (id) =>
+        }));
+        fireSync(() =>
+          import('@/lib/sync/transactions').then(m => m.upsertTransaction(updatedTransaction))
+        );
+      },
+      deleteTransaction: (id) => {
         set((state) => ({
-          transactions: state.transactions.filter(
-            (transaction) => transaction.id !== id
-          ),
-        })),
+          transactions: state.transactions.filter((t) => t.id !== id),
+        }));
+        fireSync(() =>
+          import('@/lib/sync/transactions').then(m => m.deleteTransactionCloud(id))
+        );
+      },
+
       addCategory: (category) =>
-        set((state) => ({
-          categories: [...state.categories, category],
-        })),
+        set((state) => ({ categories: [...state.categories, category] })),
       updateCategory: (updatedCategory) =>
         set((state) => ({
-          categories: state.categories.map((category) =>
-            category.id === updatedCategory.id ? updatedCategory : category
+          categories: state.categories.map((c) =>
+            c.id === updatedCategory.id ? updatedCategory : c
           ),
         })),
       deleteCategory: (id) =>
         set((state) => ({
-          categories: state.categories.filter((category) => category.id !== id),
+          categories: state.categories.filter((c) => c.id !== id),
         })),
-      addCustomHabit: (habit) =>
-        set((state) => ({
-          customHabits: [...state.customHabits, habit],
-        })),
-      updateCustomHabit: (updated) =>
+
+      addCustomHabit: (habit) => {
+        set((state) => ({ customHabits: [...state.customHabits, habit] }));
+        fireSync(() =>
+          import('@/lib/sync/customHabits').then(m => m.upsertCustomHabit(habit))
+        );
+      },
+      updateCustomHabit: (updated) => {
         set((state) => ({
           customHabits: state.customHabits.map((h) =>
             h.id === updated.id ? updated : h
           ),
-        })),
-      archiveCustomHabit: (id) =>
+        }));
+        fireSync(() =>
+          import('@/lib/sync/customHabits').then(m => m.upsertCustomHabit(updated))
+        );
+      },
+      archiveCustomHabit: (id) => {
         set((state) => ({
           customHabits: state.customHabits.map((h) =>
             h.id === id ? { ...h, archived: true } : h
           ),
-        })),
-      deleteCustomHabit: (id) =>
-        set((state) => ({
-          customHabits: state.customHabits.filter((h) => h.id !== id),
-        })),
-      updateSettings: (settings) => set({ settings }),
-      importData: (data) => set({ transactions: data.transactions, categories: data.categories, settings: data.settings }),
+        }));
+        fireSync(() =>
+          import('@/lib/sync/customHabits').then(m => m.archiveCustomHabitCloud(id))
+        );
+      },
+      deleteCustomHabit: (id) => {
+        set((state) => ({ customHabits: state.customHabits.filter((h) => h.id !== id) }));
+        fireSync(() =>
+          import('@/lib/sync/customHabits').then(m => m.deleteCustomHabitCloud(id))
+        );
+      },
+
+      updateSettings: (settings) => {
+        set({ settings });
+        fireSync(() =>
+          import('@/lib/sync/settings').then(m => m.upsertUserSettings(settings))
+        );
+      },
+
+      importData: (data) =>
+        set({ transactions: data.transactions, categories: data.categories, settings: data.settings }),
       clearAllData: () => set({ transactions: [], categories: [] }),
-      setLoading: (loading) => 
+
+      setLoading: (loading) =>
         set((state) => ({
           loading: { ...state.loading, isLoading: true, ...loading },
         })),
-      hideLoading: () => 
+      hideLoading: () =>
         set((state) => ({
           loading: { ...state.loading, isLoading: false },
         })),
+
+      setSyncMeta: (meta) =>
+        set((state) => ({
+          isSyncing:  meta.isSyncing  !== undefined ? meta.isSyncing  : state.isSyncing,
+          lastSyncAt: 'lastSyncAt' in meta           ? meta.lastSyncAt : state.lastSyncAt,
+          syncError:  'syncError'  in meta           ? meta.syncError  : state.syncError,
+        })),
+
+      setCurrentUserId: (id) => set({ currentUserId: id }),
     }),
     {
-      name: 'expense-tracker-storage', // unique name for localStorage key
-      storage: customStorage, // specify customStorage as the storage medium
+      name:    'expense-tracker-storage',
+      storage: customStorage,
     }
   )
 );

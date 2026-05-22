@@ -18,6 +18,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '../hooks/useUser';
 import { createClient } from '@/lib/supabase/client';
 import { useTranslation } from '../hooks/useTranslation';
+import { useCloudSync } from '../hooks/useCloudSync';
 import TransactionModal from './TransactionModal';
 import GlobalLoader from './GlobalLoader';
 import Sidebar, { DRAWER_WIDTH } from './Sidebar';
@@ -31,6 +32,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const user = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useCloudSync(); // hydrates from Supabase on login, syncs actions fire-and-forget
 
   const getPageTitle = () => {
     if (pathname === '/')                    return t.home || 'Dashboard';
