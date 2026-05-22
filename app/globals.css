@@ -214,6 +214,13 @@ body {
   }
 }
 
+/* ─── Spin animation (sync indicator) ───────────────────────────────────── */
+
+@keyframes et-spin {
+  to { transform: rotate(360deg); }
+}
+.et-spin { animation: et-spin 0.9s linear infinite; display: inline-block; }
+
 /* ─── Toast animation ────────────────────────────────────────────────────── */
 
 @keyframes et-toast-in {

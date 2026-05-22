@@ -56,9 +56,11 @@ export async function upsertCustomHabit(habit: CustomHabit) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (!user) return { error: authError };
 
-  return supabase
+  const result = await supabase
     .from('custom_habits')
     .upsert(toRow(habit, user.id), { onConflict: 'id' });
+  if (result.error) console.error('[sync] upsertCustomHabit error:', result.error);
+  return result;
 }
 
 /** Mark a custom habit as archived in Supabase (soft delete). */

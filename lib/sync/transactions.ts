@@ -54,9 +54,11 @@ export async function upsertTransaction(transaction: Transaction) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (!user) return { error: authError };
 
-  return supabase
+  const result = await supabase
     .from('transactions')
     .upsert(toRow(transaction, user.id), { onConflict: 'id' });
+  if (result.error) console.error('[sync] upsertTransaction error:', result.error);
+  return result;
 }
 
 /** Hard-delete a transaction by id from Supabase. */

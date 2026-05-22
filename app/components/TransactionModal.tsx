@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, TrendingDown, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -125,6 +125,8 @@ export default function TransactionModal({
     () => Boolean(initialTransaction && (initialTransaction as Transaction).notes),
   );
 
+  const savingRef = useRef(false);
+
   const [isMobile, setIsMobile] = useState(false);
 
   const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
@@ -184,6 +186,8 @@ export default function TransactionModal({
   };
 
   const handleSave = () => {
+    if (savingRef.current) return;
+
     if (!transaction.concept.trim()) {
       showSnackbar('El concepto es requerido', 'error');
       return;
@@ -193,6 +197,12 @@ export default function TransactionModal({
       showSnackbar('Ingresa un monto válido', 'error');
       return;
     }
+    if (!transaction.date || !/^\d{4}-\d{2}-\d{2}$/.test(transaction.date)) {
+      showSnackbar('Ingresa una fecha válida', 'error');
+      return;
+    }
+
+    savingRef.current = true;
 
     const transactionToSave: Transaction = {
       id:             transaction.id ?? uuidv4(),
@@ -215,6 +225,7 @@ export default function TransactionModal({
       showSnackbar(t.transaction_added_successfully, 'success');
     }
     onClose();
+    setTimeout(() => { savingRef.current = false; }, 500);
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────

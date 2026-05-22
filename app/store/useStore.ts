@@ -11,7 +11,14 @@ import { v4 as uuidv4 } from 'uuid';
  */
 function fireSync(fn: () => Promise<unknown>): void {
   if (typeof window === 'undefined') return;
-  fn().catch(() => {});
+  fn()
+    .then((result) => {
+      const r = result as { error?: unknown } | null | undefined;
+      if (r?.error) console.error('[sync] fireSync error:', r.error);
+    })
+    .catch((err) => {
+      console.error('[sync] fireSync rejected:', err);
+    });
 }
 
 interface LoadingState {

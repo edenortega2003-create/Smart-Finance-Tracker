@@ -93,6 +93,30 @@ const iosButtonStyleSecondary = {
   },
 };
 
+/* ─── Date normalization ────────────────────────────────────────────── */
+/**
+ * Parses a transaction date string into a Date object set to noon local time.
+ * Handles both YYYY-MM-DD (canonical) and legacy DD/MM/YYYY formats.
+ * Falls back to epoch (new Date(0)) for unknown/empty formats so they sort last.
+ */
+function parseTransactionDate(dateStr: string): Date {
+  if (!dateStr) return new Date(0);
+  // DD/MM/YYYY — legacy format that existed before Supabase sync
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    const [d, m, y] = dateStr.split('/');
+    const parsed = new Date(`${y}-${m}-${d}T12:00:00`);
+    return isNaN(parsed.getTime()) ? new Date(0) : parsed;
+  }
+  // YYYY-MM-DD — canonical format (all current code produces this)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const parsed = new Date(`${dateStr}T12:00:00`);
+    return isNaN(parsed.getTime()) ? new Date(0) : parsed;
+  }
+  // Fallback for any other representation
+  const fallback = new Date(dateStr);
+  return isNaN(fallback.getTime()) ? new Date(0) : fallback;
+}
+
 /* ─── Mobile helpers ────────────────────────────────────────────────── */
 function getTemporalBucket(dateStr: string): string {
   const today     = new Date();
@@ -101,7 +125,7 @@ function getTemporalBucket(dateStr: string): string {
   const weekAgo   = new Date(today);
   weekAgo.setDate(today.getDate() - 7);
 
-  const tx = new Date(dateStr + 'T12:00:00');
+  const tx = parseTransactionDate(dateStr);
 
   const sameDay = (a: Date, b: Date) =>
     a.getFullYear() === b.getFullYear() &&
@@ -510,7 +534,7 @@ export default function TransactionsPage() {
   };
 
   const sortedTransactions = useMemo(
-    () => [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    () => [...transactions].sort((a, b) => parseTransactionDate(b.date).getTime() - parseTransactionDate(a.date).getTime()),
     [transactions],
   );
 
@@ -525,10 +549,10 @@ export default function TransactionsPage() {
     if (filterHabit !== 'all') {
       if (!matchesHabitFilter(transaction, filterHabit, customHabits)) return false;
     }
-    const transactionDate = new Date(transaction.date);
+    const transactionDate = parseTransactionDate(transaction.date);
     if (filterStartDate && filterEndDate) {
-      const start = new Date(filterStartDate);
-      const end   = new Date(filterEndDate);
+      const start = new Date(filterStartDate + 'T00:00:00');
+      const end   = new Date(filterEndDate   + 'T23:59:59');
       if (transactionDate < start || transactionDate > end) return false;
     }
     if (filterMonth) {
@@ -573,7 +597,11 @@ export default function TransactionsPage() {
     ? (HABIT_GROUPS.find(g => g.id === filterHabit) ?? customHabits.find(h => h.id === filterHabit) ?? null)
     : null;
 
-  const years  = Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))).sort();
+  const years  = Array.from(new Set(
+    transactions
+      .map(t => { const d = parseTransactionDate(t.date); return d.getTime() > 0 ? d.getFullYear().toString() : null; })
+      .filter((y): y is string => y !== null)
+  )).sort();
   const months = [
     { value: '1',  label: 'January'   },
     { value: '2',  label: 'February'  },
@@ -1182,7 +1210,7 @@ export default function TransactionsPage() {
                       sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
                     >
                       <TableCell component="th" scope="row">
-                        {new Date(transaction.date).toLocaleDateString()}
+                        {parseTransactionDate(transaction.date).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 500 }}>
                         {transaction.concept ?? transaction.category?.name ?? '—'}

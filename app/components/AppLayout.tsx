@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Plus, TrendingDown, TrendingUp, LayoutGrid, Home, ArrowLeftRight, Tag, Settings, X, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '../hooks/useUser';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +24,77 @@ import GlobalLoader from './GlobalLoader';
 import Sidebar, { DRAWER_WIDTH } from './Sidebar';
 import { Transaction } from '../types';
 
+// ─── Sync status chip ────────────────────────────────────────────────────────
+
+function SyncChip({
+  isSyncing, lastSyncAt, syncError, isOnline, isMobile,
+}: {
+  isSyncing: boolean;
+  lastSyncAt: string | null;
+  syncError: string | null;
+  isOnline: boolean;
+  isMobile: boolean;
+}) {
+  const [showSynced, setShowSynced] = useState(false);
+  const prevLastSyncAt = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      lastSyncAt &&
+      lastSyncAt !== prevLastSyncAt.current &&
+      !isSyncing && !syncError && isOnline
+    ) {
+      prevLastSyncAt.current = lastSyncAt;
+      setShowSynced(true);
+      const t = setTimeout(() => setShowSynced(false), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [lastSyncAt, isSyncing, syncError, isOnline]);
+
+  if (!isSyncing && !syncError && !showSynced && isOnline) return null;
+
+  const cfg = !isOnline
+    ? { label: '⚠ Sin conexión',   bg: '#FFFBEB', color: '#D97706', border: 'rgba(217,119,6,0.25)' }
+    : syncError
+    ? { label: '✕ Error de sync',  bg: '#FFF1F2', color: '#EF4444', border: 'rgba(239,68,68,0.25)' }
+    : isSyncing
+    ? { label: 'Sincronizando…',   bg: '#EEF2FF', color: '#6366F1', border: 'rgba(99,102,241,0.25)' }
+    : { label: '✓ Guardado',        bg: '#ECFDF5', color: '#059669', border: 'rgba(5,150,105,0.25)'  };
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={cfg.label}
+      style={{
+        position:      'fixed',
+        top:           isMobile ? 'calc(env(safe-area-inset-top, 0px) + 54px)' : '12px',
+        right:         '12px',
+        zIndex:        1500,
+        display:       'flex',
+        alignItems:    'center',
+        gap:           '5px',
+        padding:       '4px 10px',
+        borderRadius:  '999px',
+        background:    cfg.bg,
+        border:        `1px solid ${cfg.border}`,
+        color:         cfg.color,
+        fontSize:      '11px',
+        fontWeight:    600,
+        letterSpacing: '0.01em',
+        boxShadow:     '0 1px 6px rgba(0,0,0,0.10)',
+        userSelect:    'none',
+        pointerEvents: 'none',
+      }}
+    >
+      {isSyncing && (
+        <span className="et-spin" aria-hidden="true" style={{ fontSize: '13px', lineHeight: 1 }}>↻</span>
+      )}
+      {cfg.label}
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -33,7 +104,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const user = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useCloudSync(); // hydrates from Supabase on login, syncs actions fire-and-forget
+  const { isSyncing, lastSyncAt, syncError, isOnline } = useCloudSync();
 
   const getPageTitle = () => {
     if (pathname === '/')                    return t.home || 'Dashboard';
@@ -461,6 +532,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+      <SyncChip
+        isSyncing={isSyncing}
+        lastSyncAt={lastSyncAt}
+        syncError={syncError}
+        isOnline={isOnline}
+        isMobile={isMobile}
+      />
       <GlobalLoader />
     </>
   );

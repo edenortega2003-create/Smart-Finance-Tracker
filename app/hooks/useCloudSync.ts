@@ -3,9 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useUser } from './useUser';
 import { useStore } from '../store/useStore';
-import { fetchTransactions, upsertTransaction } from '@/lib/sync/transactions';
-import { fetchCustomHabits, upsertCustomHabit } from '@/lib/sync/customHabits';
-import { fetchUserSettings, upsertUserSettings } from '@/lib/sync/settings';
+import { useOnlineStatus } from './useOnlineStatus';
 
 /**
  * Fetches all cloud data for the signed-in user and merges it with localStorage.
@@ -16,39 +14,47 @@ import { fetchUserSettings, upsertUserSettings } from '@/lib/sync/settings';
  * - Legacy `category` field       → preserved from local if cloud version lacks it
  * - Settings                      → cloud wins; if no cloud record yet, upload local
  *
- * Called automatically on login and manually via syncNow().
- * Uses useStore.getState() / useStore.setState() so it works outside React
- * without triggering the per-action fireSync calls (no double-sync).
+ * Called automatically on login, on manual syncNow(), and when the device
+ * comes back online after being offline.
  */
 async function hydrateFromCloud(): Promise<void> {
   useStore.getState().setSyncMeta({ isSyncing: true, syncError: null });
 
   try {
+    const [syncTx, syncHabits, syncSettings] = await Promise.all([
+      import('@/lib/sync/transactions'),
+      import('@/lib/sync/customHabits'),
+      import('@/lib/sync/settings'),
+    ]);
+
     const [txResult, habitResult, settingsResult] = await Promise.all([
-      fetchTransactions(),
-      fetchCustomHabits(),
-      fetchUserSettings(),
+      syncTx.fetchTransactions(),
+      syncHabits.fetchCustomHabits(),
+      syncSettings.fetchUserSettings(),
     ]);
 
     // ── Transactions ──────────────────────────────────────────────────────────
     if (txResult.data && !txResult.error) {
-      // Re-read state after awaits to capture any optimistic writes made during fetch
       const { transactions } = useStore.getState();
       const cloudIds = new Set(txResult.data.map(t => t.id));
       const localOnly = transactions.filter(t => !cloudIds.has(t.id));
 
       if (localOnly.length > 0) {
-        await Promise.allSettled(localOnly.map(t => upsertTransaction(t)));
+        await Promise.allSettled(localOnly.map(t => syncTx.upsertTransaction(t)));
       }
 
+      // Re-read AFTER upload to capture any writes that happened during the await
+      const afterUploadState = useStore.getState();
+      const currentLocalOnly = afterUploadState.transactions.filter(t => !cloudIds.has(t.id));
+
       // Preserve legacy `category` field from local (not stored in cloud)
-      const localMap = new Map(transactions.map(t => [t.id, t]));
+      const localMap = new Map(afterUploadState.transactions.map(t => [t.id, t]));
       const mergedCloud = txResult.data.map(ct => {
         const local = localMap.get(ct.id);
         return local?.category ? { ...ct, category: local.category } : ct;
       });
 
-      useStore.setState({ transactions: [...mergedCloud, ...localOnly] });
+      useStore.setState({ transactions: [...mergedCloud, ...currentLocalOnly] });
     }
 
     // ── Custom Habits ─────────────────────────────────────────────────────────
@@ -58,10 +64,11 @@ async function hydrateFromCloud(): Promise<void> {
       const localOnly = customHabits.filter(h => !cloudIds.has(h.id));
 
       if (localOnly.length > 0) {
-        await Promise.allSettled(localOnly.map(h => upsertCustomHabit(h)));
+        await Promise.allSettled(localOnly.map(h => syncHabits.upsertCustomHabit(h)));
       }
 
-      useStore.setState({ customHabits: [...habitResult.data, ...localOnly] });
+      const afterUploadHabits = useStore.getState().customHabits.filter(h => !cloudIds.has(h.id));
+      useStore.setState({ customHabits: [...habitResult.data, ...afterUploadHabits] });
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────
@@ -69,7 +76,7 @@ async function hydrateFromCloud(): Promise<void> {
       useStore.setState({ settings: settingsResult.data });
     } else if (!settingsResult.error && !settingsResult.data) {
       // No cloud record yet → push local settings up
-      upsertUserSettings(useStore.getState().settings).catch(() => {});
+      syncSettings.upsertUserSettings(useStore.getState().settings).catch(() => {});
     }
 
     useStore.getState().setSyncMeta({
@@ -90,21 +97,24 @@ async function hydrateFromCloud(): Promise<void> {
  *
  * - Automatically hydrates from Supabase when a user logs in
  * - Detects user switches and clears the previous user's local data first
+ * - Auto-retries sync when the device comes back online
  * - Exposes syncNow() for manual re-sync and reactive sync status fields
  *
  * Mount this hook once, high in the tree (AppLayout is the right place).
  */
 export function useCloudSync() {
-  const user = useUser();
+  const user         = useUser();
+  const isOnline     = useOnlineStatus();
   const hydratingRef = useRef(false);
+  const wasOfflineRef = useRef(false);
 
   const isSyncing  = useStore(s => s.isSyncing);
   const lastSyncAt = useStore(s => s.lastSyncAt);
   const syncError  = useStore(s => s.syncError);
 
+  // Hydrate once when a user logs in
   useEffect(() => {
     if (!user?.id) {
-      // Logged out — allow next login to re-hydrate
       hydratingRef.current = false;
       return;
     }
@@ -116,17 +126,30 @@ export function useCloudSync() {
       useStore.setState({ transactions: [], customHabits: [] });
     }
 
-    // Persist the current user id (survives page refresh via Zustand persist)
     useStore.getState().setCurrentUserId(user.id);
 
-    // Hydrate once per login event (guard against StrictMode double-invoke)
     if (!hydratingRef.current) {
       hydratingRef.current = true;
       hydrateFromCloud().finally(() => {
         hydratingRef.current = false;
       });
     }
-  }, [user?.id]); // re-runs only when the signed-in user changes
+  }, [user?.id]);
+
+  // Auto-retry sync when the device comes back online
+  useEffect(() => {
+    if (!isOnline) {
+      wasOfflineRef.current = true;
+      return;
+    }
+    if (wasOfflineRef.current && user?.id && !hydratingRef.current) {
+      wasOfflineRef.current = false;
+      hydratingRef.current  = true;
+      hydrateFromCloud().finally(() => {
+        hydratingRef.current = false;
+      });
+    }
+  }, [isOnline, user?.id]);
 
   /** Force a full re-sync with Supabase right now. No-op if already syncing. */
   const syncNow = () => {
@@ -137,5 +160,5 @@ export function useCloudSync() {
     });
   };
 
-  return { isSyncing, lastSyncAt, syncError, syncNow };
+  return { isSyncing, lastSyncAt, syncError, syncNow, isOnline };
 }
